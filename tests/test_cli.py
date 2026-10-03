@@ -13,6 +13,32 @@ from omarchy_last_session import cli, config, hypr, log, proc, session
 from tests.helpers import ConfigFileCase, StateDirCase, client, mode_of, write_executable
 
 
+class Preview(StateDirCase):
+    def test_shows_live_and_saved_windows_without_relaunch_commands(self):
+        old = client("google-chrome", title="Old", workspace={"id": 3, "name": "3"})
+        live = client("google-chrome", title="Live", workspace={"id": 2, "name": "2"})
+        with (
+            mock.patch.object(hypr, "query", return_value=[old]),
+            mock.patch.object(proc, "read_cmdline", return_value=["/usr/bin/google-chrome"]),
+        ):
+            session.save_session()
+        with open(self.session) as f:
+            before = f.read()
+        with (
+            mock.patch.object(hypr, "query", return_value=[live]),
+            mock.patch.object(proc, "read_cmdline", return_value=["/usr/bin/google-chrome"]),
+            mock.patch.object(sys, "stdout", io.StringIO()) as output,
+        ):
+            self.assertEqual(cli.main(["preview"]), 0)
+        result = json.loads(output.getvalue())
+        self.assertEqual(result["current"][0]["workspace"], "2")
+        self.assertEqual(result["saved"][0]["workspace"], "3")
+        self.assertEqual(result["current"][0]["title"], "Live")
+        self.assertNotIn("cmd", result["current"][0])
+        with open(self.session) as f:
+            self.assertEqual(f.read(), before)
+
+
 class Shutdown(StateDirCase):
     """session.json is overwritten shortly after the next login, so the
     shutdown copy is what a post-reboot comparison has to read."""
@@ -25,6 +51,26 @@ class Shutdown(StateDirCase):
             mock.patch.object(sys, "stdout", io.StringIO()),
         ):
             return cli.main(["shutdown"])
+
+    def test_shutdown_keeps_all_chrome_windows_before_signalling_browser(self):
+        windows = [
+            client("google-chrome", pid=1234, title=f"Chrome {ws}",
+                   workspace={"id": ws, "name": str(ws)})
+            for ws in (1, 2, 3)
+        ]
+        def check_before_quit():
+            self.assertEqual([w["workspace"]["id"] for w in self.read_session(self.copy)], [1, 2, 3])
+            return set()
+
+        with (
+            mock.patch.object(hypr, "query", return_value=windows),
+            mock.patch.object(proc, "read_cmdline", return_value=["/usr/bin/google-chrome"]),
+            mock.patch.object(session, "quit_session_keeping_apps", side_effect=check_before_quit) as quit_apps,
+            mock.patch.object(sys, "stdout", io.StringIO()),
+        ):
+            self.assertEqual(cli.main(["shutdown"]), 0)
+        self.assertEqual(sum(w["spawn"] for w in self.read_session(self.copy)), 1)
+        quit_apps.assert_called_once()
 
     def test_shutdown_keeps_a_copy_of_the_snapshot(self):
         self.assertEqual(self.run_shutdown([client("code"), client("foot")]), 0)
@@ -245,7 +291,13 @@ class MenuRows(ConfigFileCase):
     def test_the_rows_are_the_config_row_and_omarchys_power_rows(self):
         self.assertEqual(
             set(self.rows()),
-            {"setup.config.last-session", "system.logout", "system.reboot", "system.shutdown"},
+            {"setup.restore", "setup.config.last-session", "system.logout", "system.reboot", "system.shutdown"},
+        )
+
+    def test_preview_row_opens_the_panel(self):
+        self.assertEqual(
+            self.rows()["setup.restore"]["action"],
+            "omarchy-shell shell summon io.github.hjanuschka.restore",
         )
 
     def test_the_config_row_hides_with_the_plugin_directory(self):

@@ -8,8 +8,9 @@ daemon   - save when Hyprland reports a window moving, so a power button, a
            crash or the power menu costs a few seconds of changes at most
 config   - open the config file in your editor; the daemon picks an edit up
            within a minute
+preview  - show restorable windows now and in the saved snapshot as JSON
 menu     - print the rows for ~/.config/omarchy/extensions/omarchy-menu.jsonc:
-           the config file under Setup > Config, and Omarchy's own Logout,
+           the preview and config under Setup, and Omarchy's own Logout,
            Reboot and Shutdown rows, each running shutdown first
 
 Config lives in $XDG_CONFIG_HOME/omarchy/last-session.ini, written with every default
@@ -45,6 +46,29 @@ PLUGIN_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 def run_save() -> None:
     print(f"saved {session.save_session()} windows to {config.SESSION_FILE}")
+
+
+def run_preview() -> None:
+    current = session.snapshot_windows()
+    try:
+        with session.open_private(config.SESSION_FILE) as f:
+            saved = json.load(f)
+    except FileNotFoundError:
+        saved = {"saved_at": None, "windows": []}
+    print(json.dumps({
+        "current": [preview_window(w) for w in current],
+        "saved": [preview_window(w) for w in saved["windows"]],
+        "saved_at": saved.get("saved_at"),
+    }))
+
+
+def preview_window(win: session.SavedWindow) -> dict[str, object]:
+    return {
+        "class": win["class"],
+        "title": win["title"],
+        "workspace": win["workspace"]["name"],
+        "monitor": win.get("monitor_name", ""),
+    }
 
 
 def run_shutdown() -> None:
@@ -112,18 +136,23 @@ def as_json_object(value: object) -> dict[str, object] | None:
 
 
 def render_menu_rows(root: str, power_rows: dict[str, dict[str, object]]) -> str:
-    """JSONC rows for the user's menu file. The config row hides itself while
-    the plugin directory is gone: the directory outlives any move of the
-    launcher inside it. The power rows replace Omarchy's own, so they never
-    hide; without the plugin they skip straight to powering off."""
+    """JSONC rows for the user's menu file. The setup rows hide while the
+    plugin directory is gone; power rows replace Omarchy's own and keep
+    working after the plugin is removed."""
     launcher = f"{root}/bin/omarchy-last-session"
     rows: dict[str, dict[str, object]] = {
+        "setup.restore": {
+            "icon": MENU_ICON,
+            "label": "Omarchy Restore",
+            "when": f"[[ -d {root} ]]",
+            "action": "omarchy-shell shell summon io.github.hjanuschka.restore",
+        },
         "setup.config.last-session": {
             "icon": MENU_ICON,
             "label": "Last Session",
             "when": f"[[ -d {root} ]]",
             "action": f"{launcher} config",
-        }
+        },
     }
     for row_id, row in power_rows.items():
         # Every other field is copied: Omarchy's menu fills in whatever a row leaves
@@ -161,6 +190,7 @@ def save_if_due(scheduler: session.SaveScheduler) -> float:
 
 COMMANDS: dict[str, Callable[[], int | None]] = {
     "save": run_save,
+    "preview": run_preview,
     "shutdown": run_shutdown,
     "restore": restore.restore_session,
     "daemon": run_daemon,
