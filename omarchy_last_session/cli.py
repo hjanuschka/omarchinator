@@ -10,6 +10,7 @@ config   - open the config file in your editor; the daemon picks an edit up
            within a minute
 preview  - show restorable windows now and in the saved snapshot as JSON
 setup    - list | save NAME [--screenshot] | show NAME | start NAME | url NAME INDEX URL
+apply    - arrange the saved Last non-destructively; skip Chrome windows without URLs
 menu     - print the rows for ~/.config/omarchy/extensions/omarchy-menu.jsonc:
            the preview and config under Setup, and Omarchy's own Logout,
            Reboot and Shutdown rows, each running shutdown first
@@ -97,6 +98,10 @@ def preview_window(win: session.SavedWindow, image: str = "") -> dict[str, objec
         "size": win["size"],
         "preview": image,
     }
+
+
+def run_apply() -> None:
+    print(json.dumps(setups.apply_windows(session.load_session())))
 
 
 def run_setup(args: list[str]) -> int:
@@ -245,6 +250,7 @@ def save_if_due(scheduler: session.SaveScheduler) -> float:
 COMMANDS: dict[str, Callable[[], int | None]] = {
     "save": run_save,
     "preview": run_preview,
+    "apply": run_apply,
     "shutdown": run_shutdown,
     "restore": restore.restore_session,
     "daemon": run_daemon,

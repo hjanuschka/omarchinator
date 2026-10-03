@@ -209,13 +209,16 @@ def set_url(name: str, index: int, url: str) -> None:
 
 
 def start(name: str) -> dict[str, Any]:
-    data = read(name)
+    return apply_windows(read(name)["windows"])
+
+
+def apply_windows(windows: list[session.SavedWindow]) -> dict[str, Any]:
     existing = hypr.get_managed_clients()
     origins = hypr.get_monitor_origins()
     used: set[str] = set()
     to_launch = []
     skipped = []
-    for win in data["windows"]:
+    for win in windows:
         match = next((addr for addr, client in existing.items()
                       if addr not in used and client["class"] == win["class"]
                       and client.get("title") == win["title"]), None)

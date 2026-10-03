@@ -12,6 +12,9 @@ by their saved geometry so you can see each layout; Hyprland may re-tile it
 when launched. **Start setup** matches and moves existing windows, then launches
 missing ones; it never closes apps or overwrites Last. Screenshots and launch
 commands stay in `~/.local/state/omarchy-last-session/setups/`, not in Git.
+**Apply Last** also runs non-destructively into the current desktop: matching
+windows move, replayable missing apps open, and Chrome windows without URLs
+are skipped. It does not replace or close the current session.
 Last never captures screenshots during background autosaves. Opening or
 refreshing the panel captures live window previews on demand into a private
 `$XDG_RUNTIME_DIR/omarchinator-previews/` cache, cleared at logout. Saved Last
@@ -29,6 +32,7 @@ cli=~/.config/omarchy/plugins/io.github.hjanuschka.omarchinator/bin/omarchinator
 "$cli" setup show 'Company A'
 "$cli" setup url 'Company A' 0 https://example.com/
 "$cli" setup start 'Company A'
+"$cli" apply  # apply the autosaved Last
 ```
 
 The `url` index is the zero-based Chrome window index from `setup show`.

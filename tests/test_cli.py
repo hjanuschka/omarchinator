@@ -10,7 +10,7 @@ import unittest
 from unittest import mock
 
 from omarchy_last_session import cli, config, hypr, log, proc, session, setups
-from tests.helpers import ConfigFileCase, StateDirCase, client, mode_of, write_executable
+from tests.helpers import ConfigFileCase, StateDirCase, client, mode_of, saved_window, write_executable
 
 
 class Preview(StateDirCase):
@@ -61,6 +61,23 @@ class Preview(StateDirCase):
         self.assertEqual(data["saved"][1]["preview"], "")
         self.assertEqual(data["current_workspaces"][0]["name"], "2")
         self.assertEqual([w["name"] for w in data["saved_workspaces"]], ["2", "3"])
+
+
+class ApplyLast(StateDirCase):
+    def test_apply_reads_saved_snapshot_without_overwriting_it(self):
+        self.write_session([saved_window("foot", ws=3)])
+        with open(self.session) as f:
+            original = f.read()
+        with (
+            mock.patch.object(setups, "apply_windows", return_value={"matched": 0, "launched": 1,
+                "skipped_chrome": [], "missing": []}) as apply,
+            mock.patch.object(sys, "stdout", io.StringIO()) as output,
+        ):
+            self.assertEqual(cli.main(["apply"]), 0)
+        self.assertEqual(apply.call_args.args[0][0]["workspace"]["name"], "3")
+        self.assertEqual(json.loads(output.getvalue())["launched"], 1)
+        with open(self.session) as f:
+            self.assertEqual(f.read(), original)
 
 
 class Shutdown(StateDirCase):

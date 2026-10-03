@@ -128,6 +128,21 @@ class NamedSetups(StateDirCase):
             self.assertEqual(command, "/usr/bin/google-chrome --new-window https://work.example")
             self.assertEqual(launched.call_args.kwargs["clean_browser_exit"], False)
 
+    def test_apply_last_skips_chrome_without_a_url_but_launches_other_apps(self):
+        browser = saved_window("google-chrome", cmd="chrome --restore-last-session")
+        browser["title"] = "Work browser"
+        terminal = saved_window("foot", cmd="foot")
+        with (
+            mock.patch.object(hypr, "get_managed_clients", return_value={}),
+            mock.patch.object(hypr, "get_monitor_origins", return_value={}),
+            mock.patch.object(launch, "launch_saved_windows") as launched,
+            mock.patch.object(sweep, "sweep", return_value=([], [])),
+        ):
+            result = setups.apply_windows([browser, terminal])
+        self.assertEqual(result["skipped_chrome"], ["Work browser"])
+        self.assertEqual(result["launched"], 1)
+        self.assertEqual([w["class"] for w in launched.call_args.args[0]], ["foot"])
+
     def test_matching_window_moves_without_relaunching_or_touching_last(self):
         saved = saved_window("foot", ws=3)
         saved["title"] = "Shell"

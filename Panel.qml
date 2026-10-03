@@ -87,6 +87,13 @@ Item {
     startProcess.command = [script, "setup", "start", selectedName]
     startProcess.running = true
   }
+  function applyLast() {
+    if (busy || !saved.length) return
+    error = ""
+    notice = "Applying Last..."
+    startProcess.command = [script, "apply"]
+    startProcess.running = true
+  }
   function setUrl(index, url) {
     if (busy) return
     error = ""
@@ -164,8 +171,11 @@ Item {
         try {
           var result = JSON.parse(text)
           root.notice = result.matched + " matched, " + result.launched + " launched"
-          if (result.skipped_chrome.length || result.missing.length)
-            root.error = result.skipped_chrome.length + " Chrome windows need URLs; " + result.missing.length + " windows did not open"
+          if (result.skipped_chrome.length || result.missing.length) {
+            var browserMessage = startProcess.command[1] === "apply"
+              ? " Chrome windows could not be recreated; " : " Chrome windows need URLs; "
+            root.error = result.skipped_chrome.length + browserMessage + result.missing.length + " windows did not open"
+          }
         } catch (e) { root.error = "Could not read start result: " + e }
       }
     }
@@ -323,6 +333,17 @@ Item {
                     : "Automatic recovery  -  " + root.saved.length + " saved windows"
                   color: root.muted
                 }
+                RowLayout {
+                  visible: !root.selectedName && root.lastView === "saved"
+                  ActionButton { label: "Apply Last"; prominent: true; enabled: !root.busy && root.saved.length > 0; onClicked: root.applyLast() }
+                  Text {
+                    text: "Moves matches, reopens apps; never closes windows. Missing Chrome windows are skipped."
+                    color: root.muted
+                    wrapMode: Text.WordWrap
+                    Layout.fillWidth: true
+                    font.pixelSize: 11
+                  }
+                }
                 Text {
                   visible: root.displayedWorkspaces.length > 0
                   text: root.selectedName ? "WORKSPACE MAP  /  saved window geometry"
@@ -402,11 +423,11 @@ Item {
                 }
                 RowLayout {
                   visible: !!root.selectedName
-                  ActionButton { label: "Start setup"; prominent: true; enabled: !root.busy && !!root.selected; onClicked: root.startSetup() }
+                  ActionButton { label: "Apply setup"; prominent: true; enabled: !root.busy && !!root.selected; onClicked: root.startSetup() }
                   Text { text: "Adds and arranges windows; never closes apps"; color: root.muted; font.pixelSize: 11 }
                 }
                 RowLayout {
-                  visible: !root.selectedName
+                  visible: !root.selectedName && root.lastView === "current"
                   ActionButton { label: "Save last now"; prominent: true; enabled: !root.busy; onClicked: root.saveLast() }
                   Text { text: root.savedAt ? "Saved " + new Date(root.savedAt * 1000).toLocaleString() : "Not saved yet"; color: root.muted }
                 }
