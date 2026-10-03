@@ -1,6 +1,6 @@
-# omarchy-last-session
+# Omarchinator
 
-Omarchy shell plugin that saves the open windows and reopens them after a reboot. Python 3.9, standard library only, no build step. `manifest.json` declares one `service` kind whose entry point is `Service.qml`; the shell runs it inside quickshell. `bin/omarchy-last-session` is a launcher that puts the repo root on `sys.path` and calls `cli.main()`. The README documents behaviour for users; this file holds what an agent needs to change the code safely.
+Omarchy shell plugin that autosaves Last for login recovery and launches named setups on demand. Python 3.9 standard library for core behavior; setup previews use grim and ImageMagick. `manifest.json` declares a headless `service` (`Service.qml`) and a `panel` (`Panel.qml`). `bin/omarchinator` invokes `cli.main()`. This fork retains the upstream internal Python package name and state directory for compatibility.
 
 ## Layout
 
@@ -16,7 +16,8 @@ Omarchy shell plugin that saves the open windows and reopens them after a reboot
 | `omarchy_last_session/session.py` | snapshot file, `SaveScheduler`, graceful quit at shutdown |
 | `omarchy_last_session/restore/` | the restore pass, run by `__init__.py`: `launch`, then the `sweep` that pairs live windows with saved ones (`pairing`, `titles`) and moves them (`placement`), then `layout` for groups, workspace names and monitors |
 | `omarchy_last_session/notification.py` | the toast restore shows while it runs, through Omarchy's `omarchy-notification-send` and `omarchy-notification-dismiss` |
-| `omarchy_last_session/cli.py` | the six commands `save`, `restore`, `shutdown`, `daemon`, `config`, `menu` |
+| `omarchy_last_session/cli.py` | command dispatch, including `preview` and `setup` subcommands |
+| `omarchy_last_session/setups.py` | private named snapshots, per-window captures, safe additive launch |
 | `tests/` | unit tests, one file per module (`test_restore_<module>.py` for `restore/<module>.py`), fixtures in `tests/helpers.py` |
 | `tests/integration/` | live suite against a real Hyprland in a container, or in a VM inside it with `OLS_VM=1` (`vm-run.sh`) |
 | `docs/preview.html` | source of the marketplace `preview.png` |
@@ -100,20 +101,14 @@ Comments explain what a name cannot. No comment restates the line under it, no d
 
 ## Trying a change on this desktop
 
-The installed plugin at `~/.config/omarchy/plugins/io.github.asmyshlyaev177.last-session` is a git clone of the GitHub repository, not of this checkout. `omarchy plugin update io.github.asmyshlyaev177.last-session` fast-forwards it after a push. For uncommitted work, copy the tree over it and restart the shell:
-
-```sh
-rsync -a --delete --exclude='.git/' --exclude='__pycache__/' --exclude='.ruff_cache/' --exclude='.mypy_cache/' \
-  ./ ~/.config/omarchy/plugins/io.github.asmyshlyaev177.last-session/
-omarchy-restart-shell
-```
+The installed plugin at `~/.config/omarchy/plugins/io.github.hjanuschka.omarchinator` is a symlink to `~/Projects/omarchinator`. Changes in this checkout are live after `omarchy restart shell`; there is no separate installed copy.
 
 The daemon's first save lands 90 s later. The README is public and does not carry this recipe.
 
 To rehearse a boot without rebooting, run what the menu's Logout row runs, from a terminal other than VS Code's, because `shutdown` quits VS Code and its terminal with it. SDDM autologins only at startup here (`Relogin=false` in `/usr/lib/sddm/sddm.conf.d/default.conf`), so it shows the login screen, and logging in starts a fresh Hyprland whose restore runs as it does at boot. With `save` in place of `shutdown` it rehearses a desktop without the power rows, where Brave can drop a window.
 
 ```sh
-~/.config/omarchy/plugins/io.github.asmyshlyaev177.last-session/bin/omarchy-last-session shutdown; omarchy-system-logout
+~/.config/omarchy/plugins/io.github.hjanuschka.omarchinator/bin/omarchinator shutdown; omarchy-system-logout
 journalctl --user -t omarchy-shell --since -5min | grep omarchy-last-session   # after logging back in
 ```
 

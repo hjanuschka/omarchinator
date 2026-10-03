@@ -9,7 +9,7 @@ import sys
 import unittest
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
-SOURCES = sorted((ROOT / "omarchy_last_session").rglob("*.py")) + [ROOT / "bin" / "omarchy-last-session"]
+SOURCES = sorted((ROOT / "omarchy_last_session").rglob("*.py")) + [ROOT / "bin" / "omarchinator"]
 # Run under -I -S, where no site-packages is on the path: only the standard
 # library and the plugin itself can be imported.
 IMPORT_EACH = """

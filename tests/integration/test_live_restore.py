@@ -27,7 +27,7 @@ import unittest
 import zlib
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-SCRIPT = os.path.join(os.path.dirname(os.path.dirname(HERE)), "bin", "omarchy-last-session")
+SCRIPT = os.path.join(os.path.dirname(os.path.dirname(HERE)), "bin", "omarchinator")
 CONFIG = os.path.join(HERE, "hyprland.lua")
 DRM_CARD = os.environ.get("OLS_DRM_CARD")
 LIVE = os.environ.get("OLS_LIVE_TESTS") == "1" and all(

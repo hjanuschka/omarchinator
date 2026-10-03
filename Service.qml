@@ -12,7 +12,7 @@ Item {
   property var shell: null
   property var manifest: null
 
-  readonly property string script: Qt.resolvedUrl("bin/omarchy-last-session").toString().replace(/^file:\/\//, "")
+  readonly property string script: Qt.resolvedUrl("bin/omarchinator").toString().replace(/^file:\/\//, "")
 
   Timer {
     // Autostarted apps are still mapping their windows; the script's guard

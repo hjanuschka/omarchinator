@@ -1,4 +1,4 @@
-"""omarchy-last-session: reopen your last session's windows on login. Omarchy / Hyprland 0.55+.
+"""Omarchinator: recover Last on login and launch named workday setups.
 
 save     - snapshot every mapped window (workspace, geometry, relaunch command)
 shutdown - save, then let session-keeping apps exit cleanly; optional, for a
@@ -9,6 +9,7 @@ daemon   - save when Hyprland reports a window moving, so a power button, a
 config   - open the config file in your editor; the daemon picks an edit up
            within a minute
 preview  - show restorable windows now and in the saved snapshot as JSON
+setup    - list | save NAME [--screenshot] | show NAME | start NAME | url NAME INDEX URL
 menu     - print the rows for ~/.config/omarchy/extensions/omarchy-menu.jsonc:
            the preview and config under Setup, and Omarchy's own Logout,
            Reboot and Shutdown rows, each running shutdown first
@@ -29,7 +30,7 @@ import time
 from collections.abc import Callable
 from typing import cast
 
-from omarchy_last_session import config, hypr, log, restore, session, warn
+from omarchy_last_session import config, hypr, log, restore, session, setups, warn
 
 # Omarchy's own: opens the user's editor and shows a toast, as the Config menu entries do.
 CONFIG_EDITOR = "omarchy-launch-config-editor"
@@ -69,6 +70,32 @@ def preview_window(win: session.SavedWindow) -> dict[str, object]:
         "workspace": win["workspace"]["name"],
         "monitor": win.get("monitor_name", ""),
     }
+
+
+def run_setup(args: list[str]) -> int:
+    if len(args) < 2:
+        warn("usage: setup list | save NAME [--screenshot] | show NAME | start NAME | url NAME INDEX URL")
+        return 1
+    action = args[1]
+    try:
+        if action == "list" and len(args) == 2:
+            result = setups.list_setups()
+        elif action == "save" and len(args) in (3, 4) and (len(args) == 3 or args[3] == "--screenshot"):
+            result = setups.summary(setups.save(args[2], screenshot=len(args) == 4))
+        elif action == "show" and len(args) == 3:
+            result = setups.describe(args[2])
+        elif action == "start" and len(args) == 3:
+            result = setups.start(args[2])
+        elif action == "url" and len(args) == 5:
+            setups.set_url(args[2], int(args[3]), args[4])
+            result = setups.describe(args[2])
+        else:
+            raise ValueError("invalid setup command or arguments")
+    except (OSError, ValueError, KeyError, IndexError) as e:
+        warn(str(e))
+        return 1
+    print(json.dumps(result))
+    return 0
 
 
 def run_shutdown() -> None:
@@ -139,13 +166,13 @@ def render_menu_rows(root: str, power_rows: dict[str, dict[str, object]]) -> str
     """JSONC rows for the user's menu file. The setup rows hide while the
     plugin directory is gone; power rows replace Omarchy's own and keep
     working after the plugin is removed."""
-    launcher = f"{root}/bin/omarchy-last-session"
+    launcher = f"{root}/bin/omarchinator"
     rows: dict[str, dict[str, object]] = {
-        "setup.restore": {
+        "setup.omarchinator": {
             "icon": MENU_ICON,
-            "label": "Omarchy Restore",
+            "label": "Omarchinator",
             "when": f"[[ -d {root} ]]",
-            "action": "omarchy-shell shell summon io.github.hjanuschka.restore",
+            "action": "omarchy-shell shell summon io.github.hjanuschka.omarchinator",
         },
         "setup.config.last-session": {
             "icon": MENU_ICON,
@@ -201,6 +228,9 @@ COMMANDS: dict[str, Callable[[], int | None]] = {
 
 def main(argv: list[str] | None = None) -> int:
     args = sys.argv[1:] if argv is None else argv
+    if args and args[0] == "setup":
+        config.ensure_file()
+        return run_setup(args)
     command = COMMANDS.get(args[0]) if args else None
     if command is None:
         print((__doc__ or "").strip(), file=sys.stderr)

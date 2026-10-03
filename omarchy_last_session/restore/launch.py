@@ -24,7 +24,9 @@ def sort_for_launch(windows: list[SavedWindow]) -> list[SavedWindow]:
     )
 
 
-def launch_saved_windows(windows: list[SavedWindow], origins: hypr.Origins, running: set[str]) -> None:
+def launch_saved_windows(
+    windows: list[SavedWindow], origins: hypr.Origins, running: set[str], clean_browser_exit: bool = True
+) -> None:
     """Everything is launched before anything is waited for, so a slow app
     overlaps with the rest instead of holding up the queue. The exception is a
     web app of a browser still starting: launched first, it would start the
@@ -39,7 +41,8 @@ def launch_saved_windows(windows: list[SavedWindow], origins: hypr.Origins, runn
             starting.remove(program)
             wait_for_program(program)
         if win["class"] in config.CHROMIUM_BROWSERS and win["class"] not in running:
-            chromium.mark_clean_exit(win["class"], win["cmd"])
+            if clean_browser_exit:
+                chromium.mark_clean_exit(win["class"], win["cmd"])
             starting.add(program)
         rules = build_exec_rules(win, origins)
         hypr.dispatch(f"hl.dsp.exec_cmd({hypr.quote_lua_long(win['cmd'])}, {rules})")

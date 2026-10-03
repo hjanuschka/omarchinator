@@ -78,6 +78,25 @@ class RestoreSpawning(RestoreHarness):
         self.assertIn("[=[sh -c ]]]=]", emitted)
 
 
+class NamedBrowserLaunch(unittest.TestCase):
+    def test_new_windows_wait_for_browser_without_rewriting_its_profile(self):
+        windows = [saved_window("google-chrome", cmd="chrome --new-window https://a.example"),
+                   saved_window("google-chrome", cmd="chrome --new-window https://b.example")]
+        events = []
+        with (
+            mock.patch.object(hypr, "dispatch", side_effect=lambda cmd: events.append(cmd)),
+            mock.patch.object(launch, "wait_for_program", side_effect=lambda name: events.append("wait")),
+            mock.patch.object(chromium, "mark_clean_exit") as marked,
+            mock.patch.object(time, "sleep"),
+        ):
+            launch.launch_saved_windows(windows, {}, set(), clean_browser_exit=False)
+        self.assertEqual(len(events), 3)
+        self.assertIn("https://a.example", events[0])
+        self.assertEqual(events[1], "wait")
+        self.assertIn("https://b.example", events[2])
+        marked.assert_not_called()
+
+
 class BrowserRelaunch(RestoreHarness):
     """Chromium refuses to restore its session after an unclean exit, and a
     browser the power menu killed has recorded one, so its profiles are marked

@@ -1,16 +1,42 @@
-# Omarchy Restore
+# Omarchinator
 
-Fork of [omarchy-last-session](https://github.com/asmyshlyaev177/omarchy-last-session).
-This fork adds a session preview panel and a **Save now** button. Open it with
-`omarchy-shell shell summon io.github.hjanuschka.restore`, or from **Setup >
-Omarchy Restore** after adding the menu row below. The preview shows windows
-that can be relaunched, with each window's recorded workspace; it cannot preview
-Chrome's tabs or guarantee that Chrome will reopen every saved window.
+Tmuxinator-style named desktop setups for Omarchy, based on
+[omarchy-last-session](https://github.com/asmyshlyaev177/omarchy-last-session).
+Open **Setup > Omarchinator** or run
+`omarchy-shell shell summon io.github.hjanuschka.omarchinator`.
+
+**Last** is continuously autosaved for reboot and crash recovery. **Save as
+setup** creates a separate, reusable snapshot with per-window previews,
+including windows on hidden workspaces. A workspace map arranges thumbnails
+by their saved geometry so you can see each layout; Hyprland may re-tile it
+when launched. **Start setup** matches and moves existing windows, then launches
+missing ones; it never closes apps or overwrites Last. Screenshots and launch
+commands stay in `~/.local/state/omarchy-last-session/setups/`, not in Git.
+Last never captures screenshots during background autosaves.
+
+Chrome window titles do not contain their URLs. Set an explicit URL on each
+Chrome row in the setup before starting it; missing Chrome windows without a
+URL are skipped. Chrome's in-app tabs are not captured by a screenshot.
+
+```sh
+cli=~/.config/omarchy/plugins/io.github.hjanuschka.omarchinator/bin/omarchinator
+"$cli" setup list
+"$cli" setup save 'Company A' --screenshot
+"$cli" setup show 'Company A'
+"$cli" setup url 'Company A' 0 https://example.com/
+"$cli" setup start 'Company A'
+```
+
+The `url` index is the zero-based Chrome window index from `setup show`.
+The UI provides the same controls. Captures use grim's foreign-toplevel
+handle so windows on hidden workspaces can be previewed without switching
+workspaces; screenshot support depends on the compositor. Named setups are
+private JSON files and PNGs under `~/.local/state/omarchy-last-session/setups/`.
 
 The plugin reuses `~/.config/omarchy/last-session.ini` and
 `~/.local/state/omarchy-last-session/` from the original, so disable or remove
 that plugin before enabling this one. To preserve multiple Chrome windows,
-add the power-menu actions from `bin/omarchy-last-session menu` to
+add the power-menu actions from `bin/omarchinator menu` to
 `~/.config/omarchy/extensions/omarchy-menu.jsonc` and log out through Omarchy's
 menu. Other logout paths bypass Chrome's graceful-quit step.
 
@@ -18,19 +44,19 @@ Session restore for [Omarchy](https://omarchy.org): saves the windows you have o
 
 Every window is restored on the workspace and monitor it was on. Floating windows keep their position and size. Pinned, fullscreen and grouped windows come back in that state. Terminals reopen in their last working directory, browsers keep their tabs, and web apps opened from a Chromium browser come back as their own windows. Saving is automatic, so there is no save step before you power off.
 
-Python 3.9, standard library only. No compositor patches and no extra daemons.
+Python 3.9, standard library only for the launcher. Optional setup screenshots use `grim` and ImageMagick (`magick`). No compositor patches or extra daemons.
 
 ## Install
 
 Needs Omarchy 4 (Quattro) or newer.
 
 ```sh
-omarchy plugin add https://github.com/hjanuschka/omarchy-last-session.git --enable
+omarchy plugin add https://github.com/hjanuschka/omarchinator.git --enable
 ```
 
 It then saves a snapshot whenever a window opens, closes or moves, and restores it two seconds after the shell starts on your next login.
 
-If the command ends with `omarchy-shell is not responding`, the plugin is installed but may be left disabled. Check `omarchy plugin list` and run `omarchy plugin enable io.github.hjanuschka.restore`.
+If the command ends with `omarchy-shell is not responding`, the plugin is installed but may be left disabled. Check `omarchy plugin list` and run `omarchy plugin enable io.github.hjanuschka.omarchinator`.
 
 ### Leave some windows out
 
@@ -45,13 +71,13 @@ Find a window's class with `hyprctl clients -j | jq '.[].class'`. The change tak
 ## Update
 
 ```sh
-omarchy plugin update io.github.hjanuschka.restore
+omarchy plugin update io.github.hjanuschka.omarchinator
 ```
 
 ## Remove
 
 ```sh
-omarchy plugin remove io.github.hjanuschka.restore
+omarchy plugin remove io.github.hjanuschka.omarchinator
 # Session data and config are retained unless you remove them separately.
 ```
 
@@ -66,7 +92,7 @@ Its own state directory, `~/.local/state/omarchy-last-session`, its config file,
 Omarchy closes every window, one at a time, about two seconds before it powers off. Most apps hold the shutdown themselves for as long as they need. A Chromium-based browser forgets each window that closes while another of its windows is still open, and VS Code remembers only the last window closed. Both keep every window when they are told to quit first, which is what the plugin's rows for the Omarchy menu do. Print them with:
 
 ```sh
-~/.config/omarchy/plugins/io.github.hjanuschka.restore/bin/omarchy-last-session menu
+~/.config/omarchy/plugins/io.github.hjanuschka.omarchinator/bin/omarchinator menu
 ```
 
 Paste what it prints inside the outer braces of `~/.config/omarchy/extensions/omarchy-menu.jsonc`. If the file does not exist, create it with the rows between `{` and `}`. The menu reloads the file on save.
@@ -148,11 +174,11 @@ touch ~/.local/state/omarchy-last-session/disabled
 
 ## Command line
 
-Seven commands, which work without the shell service. `restore` runs at login and `daemon` after it; `save` and `shutdown` are for your own scripts; `config` opens the config file in your editor; `menu` prints the rows for your menu file.
+The commands work without the shell service. `restore` runs at login and `daemon` after it; `save` and `shutdown` are for your own scripts; `config` opens the config file in your editor; `menu` prints the rows for your menu file.
 
 ```sh
-~/.config/omarchy/plugins/io.github.hjanuschka.restore/bin/omarchy-last-session save
-~/.config/omarchy/plugins/io.github.hjanuschka.restore/bin/omarchy-last-session restore
+~/.config/omarchy/plugins/io.github.hjanuschka.omarchinator/bin/omarchinator save
+~/.config/omarchy/plugins/io.github.hjanuschka.omarchinator/bin/omarchinator restore
 ```
 
 ## Troubleshooting
@@ -171,7 +197,7 @@ journalctl --user -t omarchy-shell -b | grep omarchy-last-session
 | A window did not come back | the log names it |
 | A browser window did not come back, and the log says the browser reopened its others | the browser forgot it, because Omarchy closed it before the browser quit. The rows under [Let apps save before the power goes](#let-apps-save-before-the-power-goes) prevent that |
 | The power menu shows `system.shutdown` with no icon, in place of Shutdown, or a power row looks different from Omarchy's own | the rows in your menu file came from an older version of the plugin, or of Omarchy. Print them again with `menu` and replace the old ones, as under [Let apps save before the power goes](#let-apps-save-before-the-power-goes) |
-| Is the plugin running? | `omarchy plugin list --json \| jq '.[] \| select(.id == "io.github.hjanuschka.restore")'` |
+| Is the plugin running? | `omarchy plugin list --json \| jq '.[] \| select(.id == "io.github.hjanuschka.omarchinator")'` |
 
 All four files live in `~/.local/state/omarchy-last-session`.
 
@@ -188,7 +214,7 @@ OLS_VM=1 tests/integration/run.sh         # live in a VM, needs /dev/kvm instead
 tests/integration/run.sh -k two_monitors  # one live test
 ```
 
-The code is the `omarchy_last_session` package; `bin/omarchy-last-session` only starts it. `docs/development_notes.md` holds the notes for changing it.
+The code is the `omarchy_last_session` package; `bin/omarchinator` only starts it. `docs/development_notes.md` holds the notes for changing it.
 
 | Module | What it holds |
 | --- | --- |

@@ -255,8 +255,8 @@ class MenuRows(ConfigFileCase):
     """`menu` prints what to paste into the menu file, with the paths of the
     copy that printed it, so a moved plugin never leaves a stale row."""
 
-    ROOT = "~/.config/omarchy/plugins/io.github.asmyshlyaev177.last-session"
-    LAUNCHER = f"{ROOT}/bin/omarchy-last-session"
+    ROOT = "~/.config/omarchy/plugins/io.github.hjanuschka.omarchinator"
+    LAUNCHER = f"{ROOT}/bin/omarchinator"
 
     def setUp(self):
         super().setUp()
@@ -291,13 +291,13 @@ class MenuRows(ConfigFileCase):
     def test_the_rows_are_the_config_row_and_omarchys_power_rows(self):
         self.assertEqual(
             set(self.rows()),
-            {"setup.restore", "setup.config.last-session", "system.logout", "system.reboot", "system.shutdown"},
+            {"setup.omarchinator", "setup.config.last-session", "system.logout", "system.reboot", "system.shutdown"},
         )
 
     def test_preview_row_opens_the_panel(self):
         self.assertEqual(
-            self.rows()["setup.restore"]["action"],
-            "omarchy-shell shell summon io.github.hjanuschka.restore",
+            self.rows()["setup.omarchinator"]["action"],
+            "omarchy-shell shell summon io.github.hjanuschka.omarchinator",
         )
 
     def test_the_config_row_hides_with_the_plugin_directory(self):
@@ -341,7 +341,7 @@ class MenuRows(ConfigFileCase):
 
     def test_the_guards_hold_when_bash_runs_them(self):
         root = os.path.join(self.config_dir.name, "plugin")
-        launcher = os.path.join(root, "bin", "omarchy-last-session")
+        launcher = os.path.join(root, "bin", "omarchinator")
         write_executable(launcher)
         with open(launcher, "a") as f:
             f.write('echo "$1"\n')

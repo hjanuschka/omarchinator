@@ -85,8 +85,8 @@ class SaveScheduler:
         return max(0.0, min(deadlines) - now)
 
 
-def snapshot_windows() -> list[SavedWindow]:
-    clients = list(hypr.get_managed_clients().values())
+def snapshot_windows(clients: list[hypr.Client] | None = None) -> list[SavedWindow]:
+    clients = clients if clients is not None else list(hypr.get_managed_clients().values())
     group_of = assign_group_ids(clients)
     layout = hypr.get_monitor_layout()
     sessions = write_kitty_sessions(clients)
