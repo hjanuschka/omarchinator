@@ -30,6 +30,10 @@ Item {
     : (lastView === "saved" ? saved : current)
   readonly property var displayedWorkspaces: selectedName ? (selected ? selected.workspaces : [])
     : (lastView === "saved" ? savedWorkspaces : currentWorkspaces)
+  readonly property var browserEntries: selected && selected.entries
+    ? selected.entries.map(function(entry, index) { return { entry: entry, index: index } })
+      .filter(function(item) { return item.entry.browser }) : []
+  readonly property int missingBrowserUrls: browserEntries.filter(function(item) { return !item.entry.url }).length
 
   function open(payloadJson) {
     window.visible = true
@@ -335,8 +339,41 @@ Item {
                 }
                 RowLayout {
                   visible: !!root.selectedName
-                  ActionButton { label: "Apply setup"; prominent: true; enabled: !root.busy && !!root.selected; onClicked: root.startSetup() }
+                  ActionButton {
+                    label: root.missingBrowserUrls ? "Apply setup (" + (root.selected.windows - root.missingBrowserUrls) + "/" + root.selected.windows + ")" : "Apply setup"
+                    prominent: true
+                    enabled: !root.busy && !!root.selected
+                    onClicked: root.startSetup()
+                  }
                   Text { text: "Adds and arranges windows; never closes apps"; color: root.muted; font.pixelSize: 11 }
+                }
+                Text {
+                  visible: !!root.selectedName && root.missingBrowserUrls > 0
+                  text: root.missingBrowserUrls + " Chrome window(s) have no URL and will be skipped. Add URLs here:"
+                  color: Color.urgent
+                  wrapMode: Text.WordWrap
+                  Layout.fillWidth: true
+                }
+                Repeater {
+                  model: root.selectedName ? root.browserEntries : []
+                  delegate: RowLayout {
+                    required property var modelData
+                    Layout.fillWidth: true
+                    Text {
+                      text: "WS " + modelData.entry.workspace + " / " + modelData.entry.title
+                      color: Color.foreground
+                      elide: Text.ElideRight
+                      Layout.preferredWidth: 230
+                    }
+                    TextField {
+                      id: browserUrl
+                      Layout.fillWidth: true
+                      text: modelData.entry.url || ""
+                      placeholderText: "https://..."
+                      onAccepted: root.setUrl(modelData.index, text)
+                    }
+                    ActionButton { label: "Set URL"; enabled: !root.busy; onClicked: root.setUrl(modelData.index, browserUrl.text) }
+                  }
                 }
                 RowLayout {
                   visible: !root.selectedName && root.lastView === "saved"
@@ -475,18 +512,6 @@ Item {
                         fillMode: Image.PreserveAspectFit
                         Layout.fillWidth: true
                         Layout.preferredHeight: visible ? 100 : 0
-                      }
-                      RowLayout {
-                        visible: !!root.selectedName && modelData.browser === true
-                        Layout.fillWidth: true
-                        TextField {
-                          id: chromeUrl
-                          Layout.fillWidth: true
-                          text: modelData.url || ""
-                          placeholderText: "https://...  (required to open this window)"
-                          onAccepted: root.setUrl(index, text)
-                        }
-                        ActionButton { label: "Set URL"; enabled: !root.busy; onClicked: root.setUrl(index, chromeUrl.text) }
                       }
                     }
                   }
