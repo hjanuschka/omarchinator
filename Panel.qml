@@ -334,6 +334,11 @@ Item {
                   color: root.muted
                 }
                 RowLayout {
+                  visible: !!root.selectedName
+                  ActionButton { label: "Apply setup"; prominent: true; enabled: !root.busy && !!root.selected; onClicked: root.startSetup() }
+                  Text { text: "Adds and arranges windows; never closes apps"; color: root.muted; font.pixelSize: 11 }
+                }
+                RowLayout {
                   visible: !root.selectedName && root.lastView === "saved"
                   ActionButton { label: "Apply Last"; prominent: true; enabled: !root.busy && root.saved.length > 0; onClicked: root.applyLast() }
                   Text {
@@ -373,7 +378,7 @@ Item {
                       readonly property real sx: width / bounds[2]
                       readonly property real sy: height / bounds[3]
                       Repeater {
-                        model: modelData.indexes
+                        model: modelData.indexes.filter(function(index) { return !!root.displayedEntries[index] })
                         delegate: Rectangle {
                           required property var modelData
                           readonly property var win: root.displayedEntries[modelData]
@@ -420,11 +425,6 @@ Item {
                     : "Captured on demand. Closed windows have no live thumbnail."
                   color: root.muted
                   font.pixelSize: 11
-                }
-                RowLayout {
-                  visible: !!root.selectedName
-                  ActionButton { label: "Apply setup"; prominent: true; enabled: !root.busy && !!root.selected; onClicked: root.startSetup() }
-                  Text { text: "Adds and arranges windows; never closes apps"; color: root.muted; font.pixelSize: 11 }
                 }
                 RowLayout {
                   visible: !root.selectedName && root.lastView === "current"
