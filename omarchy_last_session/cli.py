@@ -10,7 +10,7 @@ config   - open the config file in your editor; the daemon picks an edit up
            within a minute
 preview  - show restorable windows now and in the saved snapshot as JSON
 setup    - list | save NAME [--screenshot] | show NAME | start NAME | url NAME INDEX URL
-apply    - arrange the saved Last non-destructively; skip Chrome windows without URLs
+apply    - arrange the saved Last non-destructively; open missing Chrome windows blank
 menu     - print the rows for ~/.config/omarchy/extensions/omarchy-menu.jsonc:
            the preview and config under Setup, and Omarchy's own Logout,
            Reboot and Shutdown rows, each running shutdown first

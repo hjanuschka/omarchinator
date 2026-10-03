@@ -14,16 +14,17 @@ missing ones; it never closes apps or overwrites Last. Screenshots and launch
 commands stay in `~/.local/state/omarchy-last-session/setups/`, not in Git.
 **Apply Last** also runs non-destructively into the current desktop: matching
 windows move, replayable missing apps open, and Chrome windows without URLs
-are skipped. It does not replace or close the current session.
+open blank. It does not replace or close the current session.
 Last never captures screenshots during background autosaves. Opening or
 refreshing the panel captures live window previews on demand into a private
 `$XDG_RUNTIME_DIR/omarchinator-previews/` cache, cleared at logout. Saved Last
 entries show a live thumbnail only when the same window is still open; named
 setup captures are kept until the setup is removed.
 
-Chrome window titles do not contain their URLs. Set an explicit URL on each
-Chrome row in the setup before starting it; missing Chrome windows without a
-URL are skipped. Chrome's in-app tabs are not captured by a screenshot.
+Chrome window titles do not contain their URLs. Missing Chrome windows without
+a configured URL open as blank windows on their saved workspaces. Set a URL on
+a Chrome row to reopen that page instead. Chrome's tabs are not captured by a
+screenshot.
 
 ```sh
 cli=~/.config/omarchy/plugins/io.github.hjanuschka.omarchinator/bin/omarchinator

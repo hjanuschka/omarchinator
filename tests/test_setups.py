@@ -104,7 +104,7 @@ class NamedSetups(StateDirCase):
         self.assertEqual(detail["entries"][1]["at"], [600, 200])
         self.assertEqual([w["name"] for w in setups.workspace_layout([three, one, two])], ["2", "4"])
 
-    def test_browser_requires_explicit_url_and_never_uses_saved_startup_url(self):
+    def test_browser_without_url_opens_blank_window_not_saved_startup_url(self):
         win = saved_window("google-chrome", cmd="/usr/bin/google-chrome https://unrelated.example --restore-last-session")
         win["title"] = "Project browser"
         self._write_setup("Work", [win])
@@ -114,21 +114,42 @@ class NamedSetups(StateDirCase):
             mock.patch.object(launch, "launch_saved_windows") as launched,
             mock.patch.object(sweep, "sweep") as swept,
         ):
-            self.assertEqual(setups.start("Work")["skipped_chrome"], ["Project browser"])
-            launched.assert_not_called()
-            swept.assert_not_called()
+            swept.return_value = ([], [])
+            blank = setups.start("Work")
+            self.assertEqual(blank["blank_chrome"], ["Project browser"])
+            self.assertEqual(blank["launched"], 1)
+            self.assertEqual(launched.call_args.args[0][0]["cmd"],
+                             "/usr/bin/google-chrome --new-window about:blank")
+            self.assertEqual(launched.call_args.args[0][0]["workspace"]["name"], "2")
+            swept.assert_called_once()
             setups.set_url("Work", 0, "https://work.example")
             self.assertEqual(setups.read("Work")["windows"][0]["url"], "https://work.example")
             with self.assertRaises(ValueError):
                 setups.set_url("Work", 0, "javascript:alert(1)")
             swept.return_value = ([], [])
             result = setups.start("Work")
+            self.assertEqual(result["blank_chrome"], [])
             self.assertEqual(result["launched"], 1)
             command = launched.call_args.args[0][0]["cmd"]
             self.assertEqual(command, "/usr/bin/google-chrome --new-window https://work.example")
             self.assertEqual(launched.call_args.kwargs["clean_browser_exit"], False)
 
-    def test_apply_last_skips_chrome_without_a_url_but_launches_other_apps(self):
+    def test_blank_chrome_is_not_duplicated_when_workspace_already_has_one(self):
+        saved = saved_window("google-chrome", ws=2)
+        saved["title"] = "Saved page"
+        live = client("google-chrome", title="about:blank - Google Chrome",
+                      workspace={"id": 2, "name": "2"})
+        with (
+            mock.patch.object(hypr, "get_managed_clients", return_value={live["address"]: live}),
+            mock.patch.object(hypr, "get_monitor_origins", return_value={}),
+            mock.patch.object(launch, "launch_saved_windows") as launched,
+        ):
+            result = setups.apply_windows([saved])
+        self.assertEqual(result["matched"], 1)
+        self.assertEqual(result["launched"], 0)
+        launched.assert_not_called()
+
+    def test_apply_last_opens_blank_chrome_and_other_apps(self):
         browser = saved_window("google-chrome", cmd="chrome --restore-last-session")
         browser["title"] = "Work browser"
         terminal = saved_window("foot", cmd="foot")
@@ -139,9 +160,9 @@ class NamedSetups(StateDirCase):
             mock.patch.object(sweep, "sweep", return_value=([], [])),
         ):
             result = setups.apply_windows([browser, terminal])
-        self.assertEqual(result["skipped_chrome"], ["Work browser"])
-        self.assertEqual(result["launched"], 1)
-        self.assertEqual([w["class"] for w in launched.call_args.args[0]], ["foot"])
+        self.assertEqual(result["blank_chrome"], ["Work browser"])
+        self.assertEqual(result["launched"], 2)
+        self.assertEqual([w["class"] for w in launched.call_args.args[0]], ["google-chrome", "foot"])
 
     def test_matching_window_moves_without_relaunching_or_touching_last(self):
         saved = saved_window("foot", ws=3)

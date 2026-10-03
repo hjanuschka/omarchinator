@@ -70,7 +70,7 @@ class ApplyLast(StateDirCase):
             original = f.read()
         with (
             mock.patch.object(setups, "apply_windows", return_value={"matched": 0, "launched": 1,
-                "skipped_chrome": [], "missing": []}) as apply,
+                "blank_chrome": [], "missing": []}) as apply,
             mock.patch.object(sys, "stdout", io.StringIO()) as output,
         ):
             self.assertEqual(cli.main(["apply"]), 0)

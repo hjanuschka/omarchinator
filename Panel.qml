@@ -33,7 +33,7 @@ Item {
   readonly property var browserEntries: selected && selected.entries
     ? selected.entries.map(function(entry, index) { return { entry: entry, index: index } })
       .filter(function(item) { return item.entry.browser }) : []
-  readonly property int missingBrowserUrls: browserEntries.filter(function(item) { return !item.entry.url }).length
+  readonly property int blankBrowserCount: browserEntries.filter(function(item) { return !item.entry.url }).length
 
   function open(payloadJson) {
     window.visible = true
@@ -175,11 +175,10 @@ Item {
         try {
           var result = JSON.parse(text)
           root.notice = result.matched + " matched, " + result.launched + " launched"
-          if (result.skipped_chrome.length || result.missing.length) {
-            var browserMessage = startProcess.command[1] === "apply"
-              ? " Chrome windows could not be recreated; " : " Chrome windows need URLs; "
-            root.error = result.skipped_chrome.length + browserMessage + result.missing.length + " windows did not open"
-          }
+          if (result.missing.length)
+            root.error = result.missing.length + " windows did not open"
+          else if (result.blank_chrome.length)
+            root.error = result.blank_chrome.length + " Chrome windows opened blank; original tabs were not restored"
         } catch (e) { root.error = "Could not read start result: " + e }
       }
     }
@@ -340,7 +339,7 @@ Item {
                 RowLayout {
                   visible: !!root.selectedName
                   ActionButton {
-                    label: root.missingBrowserUrls ? "Apply setup (" + (root.selected.windows - root.missingBrowserUrls) + "/" + root.selected.windows + ")" : "Apply setup"
+                    label: "Apply setup"
                     prominent: true
                     enabled: !root.busy && !!root.selected
                     onClicked: root.startSetup()
@@ -348,8 +347,8 @@ Item {
                   Text { text: "Adds and arranges windows; never closes apps"; color: root.muted; font.pixelSize: 11 }
                 }
                 Text {
-                  visible: !!root.selectedName && root.missingBrowserUrls > 0
-                  text: root.missingBrowserUrls + " Chrome window(s) have no URL and will be skipped. Add URLs here:"
+                  visible: !!root.selectedName && root.blankBrowserCount > 0
+                  text: root.blankBrowserCount + " Chrome window(s) have no URL. They will open blank on their saved workspaces; add URLs to reopen pages:"
                   color: Color.urgent
                   wrapMode: Text.WordWrap
                   Layout.fillWidth: true
@@ -379,7 +378,7 @@ Item {
                   visible: !root.selectedName && root.lastView === "saved"
                   ActionButton { label: "Apply Last"; prominent: true; enabled: !root.busy && root.saved.length > 0; onClicked: root.applyLast() }
                   Text {
-                    text: "Moves matches, reopens apps; never closes windows. Missing Chrome windows are skipped."
+                    text: "Moves matches, reopens apps; never closes windows. Missing Chrome windows open blank."
                     color: root.muted
                     wrapMode: Text.WordWrap
                     Layout.fillWidth: true

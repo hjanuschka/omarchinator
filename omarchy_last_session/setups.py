@@ -217,7 +217,7 @@ def apply_windows(windows: list[session.SavedWindow]) -> dict[str, Any]:
     origins = hypr.get_monitor_origins()
     used: set[str] = set()
     to_launch = []
-    skipped = []
+    blank_browsers = []
     for win in windows:
         match = next((addr for addr, client in existing.items()
                       if addr not in used and client["class"] == win["class"]
@@ -230,8 +230,14 @@ def apply_windows(windows: list[session.SavedWindow]) -> dict[str, Any]:
         if win["class"] in config.CHROMIUM_BROWSERS:
             url = win.get("url", "")
             if not URL.fullmatch(url):
-                skipped.append(win["title"])
-                continue
+                on_workspace = next((addr for addr, client in existing.items()
+                                     if addr not in used and client["class"] == win["class"]
+                                     and client["workspace"].get("name") == win["workspace"].get("name")), None)
+                if on_workspace:
+                    used.add(on_workspace)
+                    continue
+                blank_browsers.append(win["title"])
+                url = "about:blank"
             argv = shlex.split(win["cmd"])
             profile = []
             for index, arg in enumerate(argv[1:], 1):
@@ -253,4 +259,4 @@ def apply_windows(windows: list[session.SavedWindow]) -> dict[str, Any]:
     else:
         missing = []
     return {"launched": len(to_launch), "matched": len(used),
-            "skipped_chrome": skipped, "missing": unavailable + [w["title"] for w in missing]}
+            "blank_chrome": blank_browsers, "missing": unavailable + [w["title"] for w in missing]}
