@@ -12,7 +12,11 @@ by their saved geometry so you can see each layout; Hyprland may re-tile it
 when launched. **Start setup** matches and moves existing windows, then launches
 missing ones; it never closes apps or overwrites Last. Screenshots and launch
 commands stay in `~/.local/state/omarchy-last-session/setups/`, not in Git.
-Last never captures screenshots during background autosaves.
+Last never captures screenshots during background autosaves. Opening or
+refreshing the panel captures live window previews on demand into a private
+`$XDG_RUNTIME_DIR/omarchinator-previews/` cache, cleared at logout. Saved Last
+entries show a live thumbnail only when the same window is still open; named
+setup captures are kept until the setup is removed.
 
 Chrome window titles do not contain their URLs. Set an explicit URL on each
 Chrome row in the setup before starting it; missing Chrome windows without a

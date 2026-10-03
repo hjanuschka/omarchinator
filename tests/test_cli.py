@@ -9,7 +9,7 @@ import time
 import unittest
 from unittest import mock
 
-from omarchy_last_session import cli, config, hypr, log, proc, session
+from omarchy_last_session import cli, config, hypr, log, proc, session, setups
 from tests.helpers import ConfigFileCase, StateDirCase, client, mode_of, write_executable
 
 
@@ -37,6 +37,30 @@ class Preview(StateDirCase):
         self.assertNotIn("cmd", result["current"][0])
         with open(self.session) as f:
             self.assertEqual(f.read(), before)
+
+    def test_live_capture_attaches_only_matching_saved_windows(self):
+        open_window = client("google-chrome", title="Same", stableId=42)
+        closed = client("foot", title="Closed", workspace={"id": 3, "name": "3"})
+        with (
+            mock.patch.object(hypr, "query", return_value=[open_window, closed]),
+            mock.patch.object(proc, "read_cmdline", return_value=["/usr/bin/google-chrome"]),
+        ):
+            session.save_session()
+        with (
+            mock.patch.object(hypr, "query", return_value=[open_window]),
+            mock.patch.object(proc, "read_cmdline", return_value=["/usr/bin/google-chrome"]),
+            mock.patch.object(
+                setups, "live_previews", return_value={open_window["address"]: "/run/user/1000/preview.png"}
+            ),
+            mock.patch.object(sys, "stdout", io.StringIO()) as output,
+        ):
+            self.assertEqual(cli.main(["preview", "--screenshots"]), 0)
+        data = json.loads(output.getvalue())
+        self.assertEqual(data["current"][0]["preview"], "/run/user/1000/preview.png")
+        self.assertEqual(data["saved"][0]["preview"], "/run/user/1000/preview.png")
+        self.assertEqual(data["saved"][1]["preview"], "")
+        self.assertEqual(data["current_workspaces"][0]["name"], "2")
+        self.assertEqual([w["name"] for w in data["saved_workspaces"]], ["2", "3"])
 
 
 class Shutdown(StateDirCase):

@@ -12,8 +12,10 @@ Item {
   property var manifest: null
   property var current: []
   property var saved: []
+  property var currentWorkspaces: []
+  property var savedWorkspaces: []
   property var savedAt: null
-  property string lastView: "saved"
+  property string lastView: "current"
   property var setups: []
   property var selected: null
   property string selectedName: ""
@@ -24,6 +26,10 @@ Item {
   readonly property color muted: Qt.rgba(Color.foreground.r, Color.foreground.g, Color.foreground.b, 0.62)
   readonly property color surface: Qt.rgba(Color.foreground.r, Color.foreground.g, Color.foreground.b, 0.08)
   readonly property bool busy: preview.running || listProcess.running || saveProcess.running || startProcess.running || urlProcess.running
+  readonly property var displayedEntries: selectedName ? (selected ? selected.entries : [])
+    : (lastView === "saved" ? saved : current)
+  readonly property var displayedWorkspaces: selectedName ? (selected ? selected.workspaces : [])
+    : (lastView === "saved" ? savedWorkspaces : currentWorkspaces)
 
   function open(payloadJson) {
     window.visible = true
@@ -41,7 +47,10 @@ Item {
     else close()
   }
   function refresh() {
-    if (!preview.running) preview.running = true
+    if (!preview.running) {
+      notice = "Refreshing live window previews..."
+      preview.running = true
+    }
     refreshSetups()
   }
   function refreshSetups() {
@@ -89,7 +98,7 @@ Item {
 
   Process {
     id: preview
-    command: [root.script, "preview"]
+    command: [root.script, "preview", "--screenshots"]
     stdout: StdioCollector {
       waitForEnd: true
       onStreamFinished: {
@@ -97,7 +106,10 @@ Item {
           var data = JSON.parse(text)
           root.current = data.current || []
           root.saved = data.saved || []
+          root.currentWorkspaces = data.current_workspaces || []
+          root.savedWorkspaces = data.saved_workspaces || []
           root.savedAt = data.saved_at
+          root.notice = "Live previews ready"
         } catch (e) { root.error = "Could not read last session: " + e }
       }
     }
@@ -184,8 +196,8 @@ Item {
     }
     Rectangle {
       anchors.centerIn: parent
-      width: Math.min(parent.width - 32, 950)
-      height: Math.min(parent.height - 32, 720)
+      width: Math.min(parent.width - 32, 1180)
+      height: Math.min(parent.height - 32, 820)
       radius: 16
       color: Color.background
       border.color: root.surface
@@ -219,7 +231,7 @@ Item {
             spacing: 18
 
             ColumnLayout {
-              Layout.preferredWidth: 230
+              Layout.preferredWidth: 250
               Layout.fillHeight: true
               spacing: 8
               Text { text: "SESSIONS"; color: root.muted; font.bold: true; font.pixelSize: 11 }
@@ -279,7 +291,7 @@ Item {
               }
               ActionButton { label: "Save as setup"; prominent: true; enabled: !root.busy; Layout.fillWidth: true; onClicked: root.saveAs() }
               Text {
-                text: "Screenshot: visible monitor only. Stored locally, never in Git."
+                text: "Setups capture every window. Live previews stay in a private runtime cache."
                 color: root.muted
                 wrapMode: Text.WordWrap
                 Layout.fillWidth: true
@@ -307,17 +319,19 @@ Item {
                 Text {
                   text: root.selectedName
                     ? "Reusable setup  -  " + (root.selected ? root.selected.windows : "...") + " windows"
+                    : root.lastView === "current" ? "Live desktop  -  " + root.current.length + " windows"
                     : "Automatic recovery  -  " + root.saved.length + " saved windows"
                   color: root.muted
                 }
                 Text {
-                  visible: !!root.selectedName
-                  text: "WORKSPACE MAP  /  saved window geometry"
+                  visible: root.displayedWorkspaces.length > 0
+                  text: root.selectedName ? "WORKSPACE MAP  /  saved window geometry"
+                    : root.lastView === "current" ? "LIVE WORKSPACE MAP" : "LAST SNAPSHOT  /  live matches shown"
                   color: Color.accent
                   font.bold: true
                 }
                 Repeater {
-                  model: root.selectedName && root.selected ? root.selected.workspaces : []
+                  model: root.displayedWorkspaces
                   delegate: ColumnLayout {
                     required property var modelData
                     Layout.fillWidth: true
@@ -330,7 +344,7 @@ Item {
                     Rectangle {
                       id: grid
                       Layout.fillWidth: true
-                      Layout.preferredHeight: 230
+                      Layout.preferredHeight: 250
                       color: root.surface
                       radius: 8
                       clip: true
@@ -341,7 +355,7 @@ Item {
                         model: modelData.indexes
                         delegate: Rectangle {
                           required property var modelData
-                          readonly property var win: root.selected.entries[modelData]
+                          readonly property var win: root.displayedEntries[modelData]
                           x: (win.at[0] - grid.bounds[0]) * grid.sx
                           y: (win.at[1] - grid.bounds[1]) * grid.sy
                           width: Math.max(28, win.size[0] * grid.sx)
@@ -380,8 +394,9 @@ Item {
                   }
                 }
                 Text {
-                  visible: !!root.selectedName
-                  text: "Approximate layout; Hyprland may re-tile when the setup starts."
+                  visible: root.displayedWorkspaces.length > 0
+                  text: root.selectedName ? "Approximate layout; Hyprland may re-tile when the setup starts."
+                    : "Captured on demand. Closed windows have no live thumbnail."
                   color: root.muted
                   font.pixelSize: 11
                 }
@@ -407,9 +422,7 @@ Item {
                   ActionButton { label: "Open now (" + root.current.length + ")"; active: root.lastView === "current"; onClicked: root.lastView = "current" }
                 }
                 Repeater {
-                  model: root.selectedName
-                    ? (root.selected ? root.selected.entries : [])
-                    : (root.lastView === "saved" ? root.saved : root.current)
+                  model: root.displayedEntries
                   delegate: Rectangle {
                     required property var modelData
                     required property int index
@@ -440,7 +453,7 @@ Item {
                         cache: false
                         fillMode: Image.PreserveAspectFit
                         Layout.fillWidth: true
-                        Layout.preferredHeight: visible ? 140 : 0
+                        Layout.preferredHeight: visible ? 100 : 0
                       }
                       RowLayout {
                         visible: !!root.selectedName && modelData.browser === true

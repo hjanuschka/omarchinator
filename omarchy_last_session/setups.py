@@ -109,6 +109,36 @@ def capture_image(command: list[str], destination: str) -> bool:
             os.unlink(thumb)
 
 
+def live_previews(clients: list[hypr.Client]) -> dict[str, str]:
+    runtime = os.environ.get("XDG_RUNTIME_DIR")
+    if not runtime:
+        warn("XDG_RUNTIME_DIR is unavailable; live previews disabled")
+        return {}
+    parent = os.lstat(runtime)
+    if not stat.S_ISDIR(parent.st_mode) or parent.st_uid != os.geteuid() or parent.st_mode & 0o077:
+        raise PermissionError(f"not a private runtime directory: {runtime}")
+    directory = os.path.join(runtime, "omarchinator-previews")
+    os.makedirs(directory, mode=0o700, exist_ok=True)
+    st = os.lstat(directory)
+    if not stat.S_ISDIR(st.st_mode) or st.st_uid != os.geteuid():
+        raise PermissionError(f"not a private preview directory: {directory}")
+    if st.st_mode & 0o077:
+        os.chmod(directory, 0o700)
+    previews: dict[str, str] = {}
+    stamp = time.time_ns()
+    for client in clients:
+        if client.get("stableId") is None:
+            continue
+        filename = f"{client['stableId']}-{stamp}.png"
+        path = os.path.join(directory, filename)
+        if capture_image(["grim", "-T", str(client["stableId"])], path):
+            previews[client["address"]] = path
+    for filename in os.listdir(directory):
+        if filename.endswith(".png") and not filename.endswith(f"-{stamp}.png"):
+            os.unlink(os.path.join(directory, filename))
+    return previews
+
+
 def list_setups() -> list[dict[str, Any]]:
     base = os.path.join(config.STATE_DIR, "setups")
     if not os.path.isdir(base):
@@ -154,12 +184,16 @@ def workspace_layout(windows: list[session.SavedWindow]) -> list[dict[str, Any]]
     for index, win in enumerate(windows):
         grouped.setdefault(win["workspace"]["name"], []).append(index)
     layouts = []
-    for name, indexes in grouped.items():
+    for name in sorted(grouped, key=lambda n: (not n.isdigit(), int(n) if n.isdigit() else n)):
+        indexes = grouped[name]
         left = min(windows[i]["at"][0] for i in indexes)
         top = min(windows[i]["at"][1] for i in indexes)
         right = max(windows[i]["at"][0] + windows[i]["size"][0] for i in indexes)
         bottom = max(windows[i]["at"][1] + windows[i]["size"][1] for i in indexes)
-        layouts.append({"name": name, "indexes": indexes, "bounds": [left, top, max(1, right-left), max(1, bottom-top)]})
+        layouts.append({
+            "name": name, "indexes": indexes,
+            "bounds": [left, top, max(1, right - left), max(1, bottom - top)],
+        })
     return layouts
 
 
