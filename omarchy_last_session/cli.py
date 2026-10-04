@@ -9,7 +9,7 @@ daemon   - save when Hyprland reports a window moving, so a power button, a
 config   - open the config file in your editor; the daemon picks an edit up
            within a minute
 preview  - show restorable windows now and in the saved snapshot as JSON
-setup    - list | save NAME [--screenshot] | show NAME | start NAME | url NAME INDEX URL
+setup    - list | save NAME [--screenshot] | show NAME | start NAME | force NAME --yes | url NAME INDEX URL
 apply    - arrange the saved Last non-destructively; open missing Chrome windows blank
 menu     - print the rows for ~/.config/omarchy/extensions/omarchy-menu.jsonc:
            the preview and config under Setup, and Omarchy's own Logout,
@@ -109,7 +109,7 @@ def run_apply() -> None:
 
 def run_setup(args: list[str]) -> int:
     if len(args) < 2:
-        warn("usage: setup list | save NAME [--screenshot] | show NAME | start NAME | url NAME INDEX URL")
+        warn("usage: setup list | save NAME [--screenshot] | show NAME | start NAME | force NAME --yes | url NAME INDEX URL")
         return 1
     action = args[1]
     try:
@@ -122,6 +122,9 @@ def run_setup(args: list[str]) -> int:
         elif action == "start" and len(args) == 3:
             with redirect_stdout(sys.stderr):
                 result = setups.start(args[2])
+        elif action == "force" and len(args) == 4 and args[3] == "--yes":
+            with redirect_stdout(sys.stderr):
+                result = setups.force_start(args[2])
         elif action == "url" and len(args) == 5:
             setups.set_url(args[2], int(args[3]), args[4])
             result = setups.describe(args[2])

@@ -182,6 +182,34 @@ def start(name: str) -> dict[str, Any]:
     return apply_windows(read(name)["windows"])
 
 
+def force_start(name: str) -> dict[str, Any]:
+    windows = read(name)["windows"]
+    if not windows:
+        raise ValueError("cannot force apply an empty setup")
+    before = hypr.get_managed_clients()
+    kept: dict[int, str] = {}
+    result = apply_windows(windows, kept)
+    live = hypr.get_managed_clients()
+    missing = [win["title"] for index, win in enumerate(windows) if
+               (addr := kept.get(index)) not in live
+               or live[addr]["class"] != win["class"]
+               or live[addr]["workspace"].get("name") != win["workspace"].get("name")]
+    if result["missing"] or missing:
+        return {**result, "closed": 0, "remaining": [], "aborted": True,
+                "missing": list(dict.fromkeys([*result["missing"], *missing]))}
+
+    extra = set(before) & (set(live) - set(kept.values()))
+    for address in extra:
+        hypr.dispatch(f'hl.dsp.window.close({{ window = {hypr.quote_lua("address:" + address)} }})')
+    deadline = time.monotonic() + 8
+    remaining = extra & hypr.get_managed_clients().keys()
+    while remaining and time.monotonic() < deadline:
+        time.sleep(0.25)
+        remaining = extra & hypr.get_managed_clients().keys()
+    return {**result, "closed": len(extra - remaining),
+            "remaining": [before[addr]["title"] for addr in sorted(remaining)], "aborted": False}
+
+
 def title_matches(win: session.SavedWindow, client: hypr.Client) -> bool:
     saved = win["title"]
     live = client.get("title", "")
@@ -191,13 +219,14 @@ def title_matches(win: session.SavedWindow, client: hypr.Client) -> bool:
     return saved == live
 
 
-def apply_windows(windows: list[session.SavedWindow]) -> dict[str, Any]:
+def apply_windows(windows: list[session.SavedWindow], kept: dict[int, str] | None = None) -> dict[str, Any]:
     existing = hypr.get_managed_clients()
     origins = hypr.get_monitor_origins()
     used: set[str] = set()
     to_launch = []
+    launch_indices: dict[int, int] = {}
     blank_browsers = []
-    for win in windows:
+    for index, win in enumerate(windows):
         candidates = [addr for addr, client in existing.items()
                       if addr not in used and client["class"] == win["class"]
                       and title_matches(win, client)]
@@ -207,6 +236,8 @@ def apply_windows(windows: list[session.SavedWindow]) -> dict[str, Any]:
             match = next(iter(candidates), None)
         if match:
             used.add(match)
+            if kept is not None:
+                kept[index] = match
             if placement.is_out_of_place(win, existing[match], origins):
                 placement.place_window(win, match, origins, existing[match].get("floating", False))
             continue
@@ -218,18 +249,22 @@ def apply_windows(windows: list[session.SavedWindow]) -> dict[str, Any]:
                                      and client["workspace"].get("name") == win["workspace"].get("name")), None)
                 if on_workspace:
                     used.add(on_workspace)
+                    if kept is not None:
+                        kept[index] = on_workspace
                     continue
                 blank_browsers.append(win["title"])
                 url = "about:blank"
             argv = shlex.split(win["cmd"])
             profile = []
-            for index, arg in enumerate(argv[1:], 1):
+            for arg_index, arg in enumerate(argv[1:], 1):
                 if arg.startswith(("--user-data-dir=", "--profile-directory=")):
                     profile.append(arg)
-                elif arg in ("--user-data-dir", "--profile-directory") and index + 1 < len(argv):
-                    profile.extend((arg, argv[index + 1]))
+                elif arg in ("--user-data-dir", "--profile-directory") and arg_index + 1 < len(argv):
+                    profile.extend((arg, argv[arg_index + 1]))
             win = {**win, "cmd": shlex.join([argv[0], *profile, "--new-window", url]), "spawn": True}
         to_launch.append(win)
+        launch_indices[id(win)] = index
+    matched = len(used)
     spawning = {w["class"] for w in to_launch if w["spawn"]}
     unavailable = [w["title"] for w in to_launch if not w["spawn"] and w["class"] not in spawning]
     to_launch = [w for w in to_launch if w["spawn"] or w["class"] in spawning]
@@ -238,8 +273,10 @@ def apply_windows(windows: list[session.SavedWindow]) -> dict[str, Any]:
         launch.launch_saved_windows(
             ordered, origins, {c["class"] for c in existing.values()}, clean_browser_exit=False
         )
-        _, missing = sweep.sweep(ordered, set(existing), origins)
+        placed, missing = sweep.sweep(ordered, set(existing), origins)
     else:
-        missing = []
-    return {"launched": len(to_launch), "matched": len(used),
+        placed, missing = [], []
+    if kept is not None:
+        kept.update((launch_indices[id(entry)], address) for entry, address in placed)
+    return {"launched": len(to_launch), "matched": matched,
             "blank_chrome": blank_browsers, "missing": unavailable + [w["title"] for w in missing]}

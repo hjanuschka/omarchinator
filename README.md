@@ -9,8 +9,13 @@ Open **Setup > Omarchinator** or run
 setup** creates a separate, reusable snapshot with per-window previews,
 including windows on hidden workspaces. A workspace map arranges thumbnails
 by their saved geometry so you can see each layout; Hyprland may re-tile it
-when launched. **Start setup** matches and moves existing windows, then launches
-missing ones; it never closes apps or overwrites Last. Screenshots and launch
+when launched. **Apply setup** matches and moves existing windows, then launches
+missing ones; it never closes apps. The **Force apply** button asks for
+confirmation: it opens the saved windows first, then closes other app
+windows that were already open. If saved windows are missing, it leaves the
+old windows alone; apps with unsaved changes may refuse to close. Last remains
+the automatic reboot snapshot and continues updating as the desktop changes.
+Screenshots and launch
 commands stay in `~/.local/state/omarchy-last-session/setups/`, not in Git.
 **Apply Last** also runs non-destructively into the current desktop: matching
 windows move, replayable missing apps open, and Chrome windows without URLs
@@ -32,6 +37,7 @@ cli=~/.config/omarchy/plugins/io.github.hjanuschka.omarchinator/bin/omarchinator
 "$cli" setup show 'Company A'
 "$cli" setup url 'Company A' 0 https://example.com/
 "$cli" setup start 'Company A'
+"$cli" setup force 'Company A' --yes # destructive; CLI does not prompt
 "$cli" apply  # apply the autosaved Last
 ```
 

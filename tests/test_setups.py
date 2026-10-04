@@ -146,6 +146,143 @@ class NamedSetups(StateDirCase):
         moved.assert_not_called()
         launched.assert_not_called()
 
+    def test_force_apply_rejects_empty_setup(self):
+        self._write_setup("Work", [])
+        with mock.patch.object(hypr, "dispatch") as dispatched:
+            with self.assertRaisesRegex(ValueError, "empty setup"):
+                setups.force_start("Work")
+        dispatched.assert_not_called()
+
+    def test_force_apply_keeps_saved_windows_and_closes_only_old_extras(self):
+        saved = saved_window("foot", ws=2)
+        saved["title"] = "Shell"
+        self._write_setup("Work", [saved])
+        wanted = client("foot", title="Shell")
+        extra = client("google-chrome", title="Other")
+        live = {c["address"]: c for c in (wanted, extra)}
+        def close(command):
+            self.assertIn("address:" + extra["address"], command)
+            live.pop(extra["address"])
+            return True
+        with (
+            mock.patch.object(hypr, "get_managed_clients", side_effect=lambda: dict(live)),
+            mock.patch.object(hypr, "get_monitor_origins", return_value={}),
+            mock.patch.object(hypr, "dispatch", side_effect=close) as dispatched,
+            mock.patch.object(session, "save_session") as save_last,
+        ):
+            result = setups.force_start("Work")
+        self.assertEqual(result["closed"], 1)
+        self.assertFalse(result["aborted"])
+        self.assertEqual(result["remaining"], [])
+        self.assertIn(wanted["address"], live)
+        dispatched.assert_called_once()
+        save_last.assert_not_called()
+
+    def test_force_apply_launches_and_verifies_before_closing(self):
+        saved = saved_window("google-chrome", ws=2,
+                             cmd="/usr/bin/google-chrome --profile-directory=Default")
+        saved["url"] = "https://x.com/home"
+        self._write_setup("Work", [saved])
+        extra = client("foot")
+        opened = client("google-chrome")
+        live = {extra["address"]: extra}
+        events = []
+        def spawn(windows, *args, **kwargs):
+            events.append("launch")
+        def arrived(windows, *args):
+            live[opened["address"]] = opened
+            return ([(windows[0], opened["address"])], [])
+        def close(command):
+            events.append("close")
+            live.pop(extra["address"])
+            return True
+        with (
+            mock.patch.object(hypr, "get_managed_clients", side_effect=lambda: dict(live)),
+            mock.patch.object(hypr, "get_monitor_origins", return_value={}),
+            mock.patch.object(launch, "launch_saved_windows", side_effect=spawn),
+            mock.patch.object(sweep, "sweep", side_effect=arrived),
+            mock.patch.object(hypr, "dispatch", side_effect=close),
+        ):
+            result = setups.force_start("Work")
+        self.assertEqual(events, ["launch", "close"])
+        self.assertEqual(result["closed"], 1)
+        self.assertEqual(result["launched"], 1)
+        self.assertIn(opened["address"], live)
+
+    def test_force_apply_reports_a_window_that_refuses_to_close(self):
+        saved = saved_window("foot", ws=2)
+        self._write_setup("Work", [saved])
+        wanted = client("foot")
+        extra = client("google-chrome", title="Unsaved form")
+        live = {c["address"]: c for c in (wanted, extra)}
+        with (
+            mock.patch.object(hypr, "get_managed_clients", return_value=live),
+            mock.patch.object(hypr, "get_monitor_origins", return_value={}),
+            mock.patch.object(hypr, "dispatch", return_value=True) as dispatched,
+            mock.patch.object(setups.time, "monotonic", side_effect=[0, 9]),
+        ):
+            result = setups.force_start("Work")
+        self.assertEqual(result["closed"], 0)
+        self.assertEqual(result["remaining"], ["Unsaved form"])
+        dispatched.assert_called_once()
+
+    def test_force_apply_does_not_close_old_windows_if_saved_window_missing(self):
+        saved = saved_window("foot", ws=2, spawn=False)
+        saved["title"] = "Missing"
+        self._write_setup("Work", [saved])
+        extra = client("google-chrome", title="Other")
+        with (
+            mock.patch.object(hypr, "get_managed_clients", return_value={extra["address"]: extra}),
+            mock.patch.object(hypr, "get_monitor_origins", return_value={}),
+            mock.patch.object(hypr, "dispatch") as dispatched,
+        ):
+            result = setups.force_start("Work")
+        self.assertTrue(result["aborted"])
+        self.assertEqual(result["closed"], 0)
+        self.assertEqual(result["missing"], ["Missing"])
+        dispatched.assert_not_called()
+
+    def test_force_apply_verifies_each_saved_window_separately(self):
+        windows = [saved_window("foot", ws=2) for _ in range(2)]
+        for win in windows:
+            win["title"] = "Shell"
+        self._write_setup("Work", windows)
+        live = client("foot")
+        extra = client("google-chrome")
+        clients = {c["address"]: c for c in (live, extra)}
+        def partial_apply(saved, kept):
+            kept[0] = live["address"]
+            return {"matched": 1, "launched": 1, "blank_chrome": [], "missing": []}
+        with (
+            mock.patch.object(hypr, "get_managed_clients", return_value=clients),
+            mock.patch.object(setups, "apply_windows", side_effect=partial_apply),
+            mock.patch.object(hypr, "dispatch") as dispatched,
+        ):
+            result = setups.force_start("Work")
+        self.assertTrue(result["aborted"])
+        self.assertEqual(result["missing"], ["Shell"])
+        dispatched.assert_not_called()
+
+    def test_force_apply_leaves_windows_opened_during_restore_alone(self):
+        saved = saved_window("foot", ws=2)
+        self._write_setup("Work", [saved])
+        wanted = client("foot")
+        late = client("google-chrome")
+        def applied(windows, kept):
+            kept[0] = wanted["address"]
+            return {"matched": 1, "launched": 0, "blank_chrome": [], "missing": []}
+        snapshots = [{wanted["address"]: wanted},
+                     {wanted["address"]: wanted, late["address"]: late},
+                     {wanted["address"]: wanted, late["address"]: late}]
+        with (
+            mock.patch.object(hypr, "get_managed_clients", side_effect=snapshots),
+            mock.patch.object(setups, "apply_windows", side_effect=applied),
+            mock.patch.object(hypr, "dispatch") as dispatched,
+        ):
+            result = setups.force_start("Work")
+        self.assertEqual(result["closed"], 0)
+        dispatched.assert_not_called()
+
     def test_blank_chrome_is_not_duplicated_when_workspace_already_has_one(self):
         saved = saved_window("google-chrome", ws=2)
         saved["title"] = "Saved page"

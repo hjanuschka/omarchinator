@@ -76,6 +76,29 @@ class ApplyLast(StateDirCase):
         self.assertEqual(json.loads(out.getvalue()), result)
         self.assertIn("launched foot", err.getvalue())
 
+    def test_force_setup_returns_clean_json(self):
+        result = {"matched": 1, "launched": 0, "closed": 2, "remaining": [],
+                  "aborted": False, "blank_chrome": [], "missing": []}
+        def logged_force(name):
+            log("force applied " + name)
+            return result
+        with (
+            mock.patch.object(setups, "force_start", side_effect=logged_force),
+            mock.patch.object(sys, "stdout", io.StringIO()) as out,
+            mock.patch.object(sys, "stderr", io.StringIO()) as err,
+        ):
+            self.assertEqual(cli.main(["setup", "force", "Work", "--yes"]), 0)
+        self.assertEqual(json.loads(out.getvalue()), result)
+        self.assertIn("force applied Work", err.getvalue())
+
+    def test_force_requires_explicit_confirmation_flag(self):
+        with (
+            mock.patch.object(setups, "force_start") as force,
+            mock.patch.object(sys, "stderr", io.StringIO()),
+        ):
+            self.assertEqual(cli.main(["setup", "force", "Work"]), 1)
+        force.assert_not_called()
+
     def test_named_setup_logs_do_not_corrupt_json_result(self):
         result = {"matched": 0, "launched": 1, "blank_chrome": [], "missing": []}
         def logged_start(name):

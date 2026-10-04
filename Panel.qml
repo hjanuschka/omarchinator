@@ -20,6 +20,7 @@ Item {
   property var setups: []
   property var selected: null
   property string selectedName: ""
+  property string forceName: ""
   property string error: ""
   property string notice: ""
   property string startStderr: ""
@@ -38,6 +39,7 @@ Item {
   readonly property int blankBrowserCount: browserEntries.filter(function(item) { return !item.entry.url }).length
 
   function open(payloadJson) {
+    forceName = ""
     window.visible = true
     refresh()
     if (payloadJson) {
@@ -47,7 +49,7 @@ Item {
       } catch (e) { error = "Invalid setup request" }
     }
   }
-  function close() { window.visible = false }
+  function close() { forceName = ""; window.visible = false }
   function dismiss() {
     if (shell && typeof shell.hide === "function") shell.hide(pluginId)
     else close()
@@ -66,6 +68,7 @@ Item {
     if (!listProcess.running) listProcess.running = true
   }
   function selectSetup(name) {
+    forceName = ""
     selectedName = name
     selected = null
     if (name && !detailsProcess.running) {
@@ -95,6 +98,16 @@ Item {
     notice = "Starting " + selectedName + "..."
     startStderr = ""
     startProcess.command = [script, "setup", "start", selectedName]
+    startProcess.running = true
+  }
+  function forceSetup() {
+    if (!forceName || forceName !== selectedName || !selected || busy) return
+    var name = forceName
+    forceName = ""
+    error = ""
+    notice = "Force applying " + name + "..."
+    startStderr = ""
+    startProcess.command = [script, "setup", "force", name, "--yes"]
     startProcess.running = true
   }
   function applyLast() {
@@ -181,8 +194,12 @@ Item {
         try {
           var result = JSON.parse(text)
           root.notice = result.matched + " matched, " + result.launched + " launched"
+          if (result.closed !== undefined)
+            root.notice += result.aborted ? "; no old windows closed" : "; " + result.closed + " other windows closed"
           if (result.missing.length)
-            root.error = result.missing.length + " windows did not open"
+            root.error = result.missing.length + " saved windows missing; no old windows closed"
+          else if (result.remaining && result.remaining.length)
+            root.error = result.remaining.length + " other windows refused to close"
           else if (result.blank_chrome.length)
             root.error = result.blank_chrome.length + " Chrome windows opened blank; original tabs were not restored"
         } catch (e) { root.error = "Could not read start result: " + e }
@@ -228,7 +245,10 @@ Item {
       FocusScope {
         anchors.fill: parent
         focus: true
-        Keys.onEscapePressed: root.dismiss()
+        Keys.onEscapePressed: {
+          if (root.forceName) root.forceName = ""
+          else root.dismiss()
+        }
         ColumnLayout {
           anchors.fill: parent
           anchors.margins: 24
@@ -353,7 +373,12 @@ Item {
                     enabled: !root.busy && !!root.selected
                     onClicked: root.startSetup()
                   }
-                  Text { text: "Adds and arranges windows; never closes apps"; color: root.muted; font.pixelSize: 11 }
+                  ActionButton {
+                    label: "Force apply"
+                    enabled: !root.busy && !!root.selected
+                    onClicked: root.forceName = root.selectedName
+                  }
+                  Text { text: "Force closes other windows after restoring saved ones"; color: root.muted; font.pixelSize: 11 }
                 }
                 Text {
                   visible: !!root.selectedName && root.blankBrowserCount > 0
@@ -531,6 +556,46 @@ Item {
                   Layout.fillWidth: true
                 }
               }
+            }
+          }
+        }
+      }
+
+      Rectangle {
+        id: forceDialog
+        anchors.fill: parent
+        visible: !!root.forceName
+        focus: visible
+        onVisibleChanged: if (visible) forceActiveFocus()
+        Keys.onEscapePressed: root.forceName = ""
+        z: 10
+        radius: 16
+        color: Qt.rgba(0, 0, 0, 0.78)
+        MouseArea { anchors.fill: parent; onClicked: root.forceName = "" }
+        Rectangle {
+          anchors.centerIn: parent
+          width: Math.min(parent.width - 40, 470)
+          height: 190
+          radius: 12
+          color: Color.background
+          border.color: Color.accent
+          MouseArea { anchors.fill: parent; onClicked: {} }
+          ColumnLayout {
+            anchors.fill: parent
+            anchors.margins: 20
+            spacing: 12
+            Text { text: "Force apply " + root.forceName + "?"; color: Color.foreground; font.bold: true; font.pixelSize: 19 }
+            Text {
+              text: "Open the saved windows first, then close other app windows. Unsaved changes may be lost. Last keeps autosaving."
+              color: Color.foreground
+              wrapMode: Text.WordWrap
+              Layout.fillWidth: true
+            }
+            Item { Layout.fillHeight: true }
+            RowLayout {
+              Layout.alignment: Qt.AlignRight
+              ActionButton { label: "Cancel"; onClicked: root.forceName = "" }
+              ActionButton { label: "Close other windows and apply"; prominent: true; onClicked: root.forceSetup() }
             }
           }
         }
