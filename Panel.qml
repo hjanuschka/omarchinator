@@ -22,6 +22,7 @@ Item {
   property string selectedName: ""
   property string error: ""
   property string notice: ""
+  property string startStderr: ""
   readonly property string script: Qt.resolvedUrl("bin/omarchinator").toString().replace(/^file:\/\//, "")
   readonly property string pluginId: (manifest && manifest.id) || "io.github.hjanuschka.omarchinator"
   readonly property color muted: Qt.rgba(Color.foreground.r, Color.foreground.g, Color.foreground.b, 0.62)
@@ -51,13 +52,14 @@ Item {
     if (shell && typeof shell.hide === "function") shell.hide(pluginId)
     else close()
   }
-  function refresh() {
+  function refreshLive() {
     Hyprland.refreshWorkspaces()
     Hyprland.refreshToplevels()
-    if (!preview.running) {
-      notice = "Refreshing window list..."
-      preview.running = true
-    }
+    if (!preview.running) preview.running = true
+  }
+  function refresh() {
+    notice = "Refreshing window list..."
+    refreshLive()
     refreshSetups()
   }
   function refreshSetups() {
@@ -91,6 +93,7 @@ Item {
     if (!selectedName || busy) return
     error = ""
     notice = "Starting " + selectedName + "..."
+    startStderr = ""
     startProcess.command = [script, "setup", "start", selectedName]
     startProcess.running = true
   }
@@ -98,6 +101,7 @@ Item {
     if (busy || !saved.length) return
     error = ""
     notice = "Applying Last..."
+    startStderr = ""
     startProcess.command = [script, "apply"]
     startProcess.running = true
   }
@@ -123,7 +127,6 @@ Item {
           root.currentWorkspaces = data.current_workspaces || []
           root.savedWorkspaces = data.saved_workspaces || []
           root.savedAt = data.saved_at
-          root.notice = "Windows updated"
         } catch (e) { root.error = "Could not read last session: " + e }
       }
     }
@@ -185,8 +188,11 @@ Item {
         } catch (e) { root.error = "Could not read start result: " + e }
       }
     }
-    stderr: StdioCollector { waitForEnd: true; onStreamFinished: if (text.trim()) root.error = text.trim() }
-    onExited: root.refresh()
+    stderr: StdioCollector { waitForEnd: true; onStreamFinished: root.startStderr = text.trim() }
+    onExited: function(code) {
+      if (code !== 0) root.error = root.startStderr || "Setup could not be applied"
+      root.refreshLive()
+    }
   }
   Process {
     id: urlProcess
