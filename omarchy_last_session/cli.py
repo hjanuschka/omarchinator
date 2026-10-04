@@ -28,6 +28,7 @@ import os
 import re
 import sys
 import time
+from contextlib import redirect_stdout
 from collections.abc import Callable
 from typing import cast
 
@@ -101,7 +102,9 @@ def preview_window(win: session.SavedWindow, address: str = "") -> dict[str, obj
 
 
 def run_apply() -> None:
-    print(json.dumps(setups.apply_windows(session.load_session())))
+    with redirect_stdout(sys.stderr):
+        result = setups.apply_windows(session.load_session())
+    print(json.dumps(result))
 
 
 def run_setup(args: list[str]) -> int:
@@ -117,7 +120,8 @@ def run_setup(args: list[str]) -> int:
         elif action == "show" and len(args) == 3:
             result = setups.describe(args[2])
         elif action == "start" and len(args) == 3:
-            result = setups.start(args[2])
+            with redirect_stdout(sys.stderr):
+                result = setups.start(args[2])
         elif action == "url" and len(args) == 5:
             setups.set_url(args[2], int(args[3]), args[4])
             result = setups.describe(args[2])

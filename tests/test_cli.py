@@ -61,6 +61,35 @@ class Preview(StateDirCase):
 
 
 class ApplyLast(StateDirCase):
+    def test_apply_logs_do_not_corrupt_json_result(self):
+        self.write_session([saved_window("foot")])
+        result = {"matched": 0, "launched": 1, "blank_chrome": [], "missing": []}
+        def logged_apply(windows):
+            log("launched foot onto workspace 2")
+            return result
+        with (
+            mock.patch.object(setups, "apply_windows", side_effect=logged_apply),
+            mock.patch.object(sys, "stdout", io.StringIO()) as out,
+            mock.patch.object(sys, "stderr", io.StringIO()) as err,
+        ):
+            self.assertEqual(cli.main(["apply"]), 0)
+        self.assertEqual(json.loads(out.getvalue()), result)
+        self.assertIn("launched foot", err.getvalue())
+
+    def test_named_setup_logs_do_not_corrupt_json_result(self):
+        result = {"matched": 0, "launched": 1, "blank_chrome": [], "missing": []}
+        def logged_start(name):
+            log("launched google-chrome onto workspace 2")
+            return result
+        with (
+            mock.patch.object(setups, "start", side_effect=logged_start),
+            mock.patch.object(sys, "stdout", io.StringIO()) as out,
+            mock.patch.object(sys, "stderr", io.StringIO()) as err,
+        ):
+            self.assertEqual(cli.main(["setup", "start", "x1"]), 0)
+        self.assertEqual(json.loads(out.getvalue()), result)
+        self.assertIn("launched google-chrome", err.getvalue())
+
     def test_apply_reads_saved_snapshot_without_overwriting_it(self):
         self.write_session([saved_window("foot", ws=3)])
         with open(self.session) as f:

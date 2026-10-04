@@ -182,6 +182,15 @@ def start(name: str) -> dict[str, Any]:
     return apply_windows(read(name)["windows"])
 
 
+def title_matches(win: session.SavedWindow, client: hypr.Client) -> bool:
+    saved = win["title"]
+    live = client.get("title", "")
+    if win["class"] in config.CHROMIUM_BROWSERS:
+        saved = re.sub(r"^\(\d+\)\s+", "", saved)
+        live = re.sub(r"^\(\d+\)\s+", "", live)
+    return saved == live
+
+
 def apply_windows(windows: list[session.SavedWindow]) -> dict[str, Any]:
     existing = hypr.get_managed_clients()
     origins = hypr.get_monitor_origins()
@@ -189,9 +198,13 @@ def apply_windows(windows: list[session.SavedWindow]) -> dict[str, Any]:
     to_launch = []
     blank_browsers = []
     for win in windows:
-        match = next((addr for addr, client in existing.items()
+        candidates = [addr for addr, client in existing.items()
                       if addr not in used and client["class"] == win["class"]
-                      and client.get("title") == win["title"]), None)
+                      and title_matches(win, client)]
+        match = next((addr for addr in candidates if existing[addr]["workspace"].get("name")
+                      == win["workspace"].get("name")), None)
+        if not match:
+            match = next(iter(candidates), None)
         if match:
             used.add(match)
             if placement.is_out_of_place(win, existing[match], origins):

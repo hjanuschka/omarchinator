@@ -110,6 +110,42 @@ class NamedSetups(StateDirCase):
             self.assertEqual(command, "/usr/bin/google-chrome --new-window https://work.example")
             self.assertEqual(launched.call_args.kwargs["clean_browser_exit"], False)
 
+    def test_browser_notification_count_does_not_duplicate_saved_page(self):
+        saved = saved_window("google-chrome", ws=2)
+        saved["title"] = "Startseite / X - Google Chrome"
+        saved["url"] = "https://x.com/home"
+        live = client("google-chrome", title="(2) Startseite / X - Google Chrome",
+                      workspace={"id": 2, "name": "2"})
+        with (
+            mock.patch.object(hypr, "get_managed_clients", return_value={live["address"]: live}),
+            mock.patch.object(hypr, "get_monitor_origins", return_value={}),
+            mock.patch.object(launch, "launch_saved_windows") as launched,
+        ):
+            result = setups.apply_windows([saved])
+        self.assertEqual(result["matched"], 1)
+        self.assertEqual(result["launched"], 0)
+        launched.assert_not_called()
+
+    def test_matching_title_prefers_saved_workspace(self):
+        saved = saved_window("google-chrome", ws=2)
+        saved["title"] = "Startseite / X - Google Chrome"
+        elsewhere = client("google-chrome", title=saved["title"],
+                           workspace={"id": 1, "name": "1"})
+        on_workspace = client("google-chrome", title="(2) " + saved["title"],
+                              workspace={"id": 2, "name": "2"})
+        with (
+            mock.patch.object(hypr, "get_managed_clients", return_value={
+                elsewhere["address"]: elsewhere, on_workspace["address"]: on_workspace}),
+            mock.patch.object(hypr, "get_monitor_origins", return_value={}),
+            mock.patch.object(placement, "place_window") as moved,
+            mock.patch.object(launch, "launch_saved_windows") as launched,
+        ):
+            result = setups.apply_windows([saved])
+        self.assertEqual(result["matched"], 1)
+        self.assertEqual(result["launched"], 0)
+        moved.assert_not_called()
+        launched.assert_not_called()
+
     def test_blank_chrome_is_not_duplicated_when_workspace_already_has_one(self):
         saved = saved_window("google-chrome", ws=2)
         saved["title"] = "Saved page"
