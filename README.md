@@ -15,11 +15,10 @@ commands stay in `~/.local/state/omarchy-last-session/setups/`, not in Git.
 **Apply Last** also runs non-destructively into the current desktop: matching
 windows move, replayable missing apps open, and Chrome windows without URLs
 open blank. It does not replace or close the current session.
-Last never captures screenshots during background autosaves. Opening or
-refreshing the panel captures live window previews on demand into a private
-`$XDG_RUNTIME_DIR/omarchinator-previews/` cache, cleared at logout. Saved Last
-entries show a live thumbnail only when the same window is still open; named
-setup captures are kept until the setup is removed.
+Last never captures screenshots during background autosaves. Open windows use
+Quickshell's live `ScreencopyView` (as in omarchy-overview), without a runtime
+image cache. Saved Last entries show a live preview only while the matching
+window is still open; named setup PNGs remain as a fallback after it closes.
 
 Chrome window titles do not contain their URLs. Missing Chrome windows without
 a configured URL open as blank windows on their saved workspaces. Set a URL on
@@ -37,9 +36,9 @@ cli=~/.config/omarchy/plugins/io.github.hjanuschka.omarchinator/bin/omarchinator
 ```
 
 The `url` index is the zero-based Chrome window index from `setup show`.
-The UI provides the same controls. Captures use grim's foreign-toplevel
-handle so windows on hidden workspaces can be previewed without switching
-workspaces; screenshot support depends on the compositor. Named setups are
+The UI provides the same controls. Named setup captures use grim's foreign-toplevel handle to save hidden
+workspaces without switching; live previews use Quickshell. Screenshot support
+depends on the compositor. Named setups are
 private JSON files and PNGs under `~/.local/state/omarchy-last-session/setups/`.
 
 The plugin reuses `~/.config/omarchy/last-session.ini` and

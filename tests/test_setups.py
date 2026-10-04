@@ -62,30 +62,6 @@ class NamedSetups(StateDirCase):
             self.assertEqual(win["preview"], f"window-{index}.png")
             self.assertEqual(os.stat(setups.describe("Company B")["entries"][index]["preview"]).st_mode & 0o777, 0o600)
 
-    def test_live_previews_use_runtime_cache_and_remove_previous_captures(self):
-        runtime = os.path.join(self.dir.name, "runtime")
-        os.mkdir(runtime, 0o700)
-        cached = os.path.join(runtime, "omarchinator-previews")
-        os.mkdir(cached, 0o700)
-        stale = os.path.join(cached, "old.png")
-        with open(stale, "wb") as f:
-            f.write(b"old")
-        live = client("kitty", stableId=45)
-        def capture(argv, path):
-            with open(path, "wb") as f:
-                f.write(b"PNG")
-            os.chmod(path, 0o600)
-            return True
-        with (
-            mock.patch.dict(os.environ, {"XDG_RUNTIME_DIR": runtime}),
-            mock.patch.object(setups, "capture_image", side_effect=capture) as captured,
-        ):
-            result = setups.live_previews([live])
-        self.assertEqual(captured.call_args.args[0], ["grim", "-T", "45"])
-        self.assertEqual(os.stat(result[live["address"]]).st_mode & 0o777, 0o600)
-        self.assertFalse(os.path.exists(stale))
-        self.assertEqual(os.stat(cached).st_mode & 0o777, 0o700)
-
     def test_names_cannot_escape_private_storage(self):
         for name in ("../secret", "", "a/b", ".hidden", "a\nfoo"):
             with self.subTest(name=name), self.assertRaises(ValueError):

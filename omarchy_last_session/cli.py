@@ -50,7 +50,7 @@ def run_save() -> None:
     print(f"saved {session.save_session()} windows to {config.SESSION_FILE}")
 
 
-def run_preview(captures: bool = False) -> None:
+def run_preview() -> None:
     clients = list(hypr.get_managed_clients().values())
     current = session.snapshot_windows(clients)
     try:
@@ -58,7 +58,6 @@ def run_preview(captures: bool = False) -> None:
             saved = json.load(f)
     except FileNotFoundError:
         saved = {"saved_at": None, "windows": []}
-    images = setups.live_previews(clients) if captures else {}
     unmatched = list(clients)
     live = []
     for win in current:
@@ -66,7 +65,7 @@ def run_preview(captures: bool = False) -> None:
                        and c.get("title") == win["title"] and c["workspace"] == win["workspace"]), None)
         if client:
             unmatched.remove(client)
-        live.append(preview_window(win, images.get(client["address"], "") if client else ""))
+        live.append(preview_window(win, client["address"] if client else ""))
     saved_windows = [preview_window(w) for w in saved["windows"]]
     remaining = list(live)
     for win in saved_windows:
@@ -77,7 +76,7 @@ def run_preview(captures: bool = False) -> None:
             None,
         )
         if match:
-            win["preview"] = match["preview"]
+            win["address"] = match["address"]
             remaining.remove(match)
     print(json.dumps({
         "current": live,
@@ -88,7 +87,7 @@ def run_preview(captures: bool = False) -> None:
     }))
 
 
-def preview_window(win: session.SavedWindow, image: str = "") -> dict[str, object]:
+def preview_window(win: session.SavedWindow, address: str = "") -> dict[str, object]:
     return {
         "class": win["class"],
         "title": win["title"],
@@ -96,7 +95,8 @@ def preview_window(win: session.SavedWindow, image: str = "") -> dict[str, objec
         "monitor": win.get("monitor_name", ""),
         "at": win["at"],
         "size": win["size"],
-        "preview": image,
+        "preview": "",
+        "address": address,
     }
 
 
@@ -264,10 +264,6 @@ def main(argv: list[str] | None = None) -> int:
     if args and args[0] == "setup":
         config.ensure_file()
         return run_setup(args)
-    if args == ["preview", "--screenshots"]:
-        config.ensure_file()
-        run_preview(captures=True)
-        return 0
     command = COMMANDS.get(args[0]) if args else None
     if command is None:
         print((__doc__ or "").strip(), file=sys.stderr)

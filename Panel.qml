@@ -3,6 +3,7 @@ import QtQuick.Controls
 import QtQuick.Layouts
 import Quickshell
 import Quickshell.Io
+import Quickshell.Hyprland
 import Quickshell.Wayland
 import qs.Commons
 
@@ -51,8 +52,10 @@ Item {
     else close()
   }
   function refresh() {
+    Hyprland.refreshWorkspaces()
+    Hyprland.refreshToplevels()
     if (!preview.running) {
-      notice = "Refreshing live window previews..."
+      notice = "Refreshing window list..."
       preview.running = true
     }
     refreshSetups()
@@ -109,7 +112,7 @@ Item {
 
   Process {
     id: preview
-    command: [root.script, "preview", "--screenshots"]
+    command: [root.script, "preview"]
     stdout: StdioCollector {
       waitForEnd: true
       onStreamFinished: {
@@ -120,7 +123,7 @@ Item {
           root.currentWorkspaces = data.current_workspaces || []
           root.savedWorkspaces = data.saved_workspaces || []
           root.savedAt = data.saved_at
-          root.notice = "Live previews ready"
+          root.notice = "Windows updated"
         } catch (e) { root.error = "Could not read last session: " + e }
       }
     }
@@ -304,7 +307,7 @@ Item {
               }
               ActionButton { label: "Save as setup"; prominent: true; enabled: !root.busy; Layout.fillWidth: true; onClicked: root.saveAs() }
               Text {
-                text: "Setups capture every window. Live previews stay in a private runtime cache."
+                text: "Setups save screenshots. Open windows preview live without disk captures."
                 color: root.muted
                 wrapMode: Text.WordWrap
                 Layout.fillWidth: true
@@ -426,12 +429,11 @@ Item {
                           color: Color.background
                           border.color: Color.accent
                           clip: true
-                          Image {
+                          LiveWindowPreview {
                             anchors.fill: parent
-                            source: win.preview ? "file://" + win.preview : ""
-                            fillMode: Image.PreserveAspectCrop
-                            cache: false
-                            visible: !!win.preview
+                            address: win.address || ""
+                            fallback: win.preview || ""
+                            active: window.visible
                           }
                           Rectangle {
                             anchors.left: parent.left; anchors.right: parent.right; anchors.bottom: parent.bottom
@@ -458,7 +460,7 @@ Item {
                 Text {
                   visible: root.displayedWorkspaces.length > 0
                   text: root.selectedName ? "Approximate layout; Hyprland may re-tile when the setup starts."
-                    : "Captured on demand. Closed windows have no live thumbnail."
+                    : "Live windows update continuously. Closed windows have no preview."
                   color: root.muted
                   font.pixelSize: 11
                 }
@@ -504,11 +506,11 @@ Item {
                         elide: Text.ElideRight
                         Layout.fillWidth: true
                       }
-                      Image {
-                        visible: !!modelData.preview
-                        source: modelData.preview ? "file://" + modelData.preview : ""
-                        cache: false
-                        fillMode: Image.PreserveAspectFit
+                      LiveWindowPreview {
+                        visible: !!modelData.address || !!modelData.preview
+                        address: modelData.address || ""
+                        fallback: modelData.preview || ""
+                        active: window.visible && visible
                         Layout.fillWidth: true
                         Layout.preferredHeight: visible ? 100 : 0
                       }
